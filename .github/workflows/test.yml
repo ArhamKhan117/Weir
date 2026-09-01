@@ -1,0 +1,41 @@
+name: CI
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Foundry project
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Run Forge fmt
+        run: forge fmt --check
+
+      # Size-check the deployable contracts only. test/** holds invariant handlers and
+      # mocks that are never deployed (MandateHubHandler is 27,330 B runtime, over
+      # EIP-170) and would fail the check for no operational reason. `--skip test` alone
+      # is not enough: it expands to `*.t.sol`, which does not cover
+      # test/invariant/handlers/*.sol. Skipping the whole test tree keeps the EIP-170 and
+      # EIP-3860 guard on src/ (MandateHub: 10,036 B runtime / 10,649 B initcode).
+      - name: Run Forge build
+        run: forge build --sizes --skip 'test/**'
+
+      - name: Run Forge tests
+        run: forge test -vvv
