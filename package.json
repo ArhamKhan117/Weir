@@ -1,0 +1,45 @@
+{
+  "name": "weir",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Weir: direct debit for digital dollars on Monad. Capped, expiring, non-custodial mandates that charge by the period or by the second.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.7.0",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "typecheck": "pnpm --filter @weir/shared build && pnpm -r typecheck && tsc -p scripts",
+    "lint": "eslint .",
+    "keeper": "tsx --env-file=.env apps/keeper/src/index.ts",
+    "keeper:mainnet": "tsx --env-file=.env.mainnet apps/keeper/src/index.ts",
+    "smoke": "tsx --env-file=.env scripts/smoke.ts",
+    "live:mainnet": "tsx --env-file=.env.mainnet scripts/mainnet-live.ts",
+    "api": "pnpm --filter @weir/api start",
+    "api:mainnet": "pnpm --filter @weir/api start:mainnet",
+    "landing": "pnpm --filter @weir/landing dev",
+    "cre:simulate": "pnpm --filter @weir/cre-keeper simulate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "yarn"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "20.19.43",
+    "eslint": "9.39.5",
+    "fast-check": "4.9.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0",
+    "viem": "2.45.3",
+    "vitest": "4.1.10"
+  }
+}

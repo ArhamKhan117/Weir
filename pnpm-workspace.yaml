@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+  - apps/*
+  # The HyperIndex project has its own package.json and lockfile, the shape the hosted service
+  # deploys from, so the workspace install leaves it alone.
+  - "!apps/envio-indexer"
