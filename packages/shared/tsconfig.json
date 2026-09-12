@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  // `scripts` is typechecked but never emitted: tsconfig.build.json compiles `src` only.
+  "include": ["src", "scripts"]
+}
