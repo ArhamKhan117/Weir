@@ -1,0 +1,74 @@
+{
+  "$comment": "One entry per Monad network, keyed by chain id, written by scripts/record-deployment.mjs from the broadcast artifact and checked by script/VerifyDeployment.s.sol. MONAD_CHAIN_ID selects the entry. Never edit addresses by hand.",
+  "networks": {
+    "143": {
+      "network": "Monad",
+      "chainId": 143,
+      "deployedAt": "2026-10-03T12:59:19.000Z",
+      "startBlock": 110186397,
+      "deployer": "0x4b9D24f806f9A20E1Cb18d7A9C3FFd063146FF5d",
+      "eip712": {
+        "name": "Weir",
+        "version": "1"
+      },
+      "contracts": {
+        "MandateHub": "0x184c6c26C1cB7f79885ED7c71e810E564CEec6a0",
+        "MandateCharger": "0xC555DBb7059B46fa4D3de4b6602E3c52cacCFf03",
+        "SavingsRouter": "0x9eE63583406589Fc6701dF53182Ed4E59A180295"
+      },
+      "assets": {
+        "USDC": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+        "AUSD": "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a"
+      },
+      "savings": {
+        "USDC": "0x80017bF0f793EBbE9679Cd61ff0e395B62CAbB59",
+        "AUSD": "0xbe3E6d3F857812B4731677C88288D4F3afF8E9a1"
+      },
+      "chainlink": {
+        "forwarder": "0x76c9cf548b4179F8901cda1f8623568b58215E62",
+        "simulationForwarder": "0x9eF6468C5f37b976E57d52054c693269479A784d"
+      },
+      "transactions": {
+        "MandateHub": "0xde8f4f800e564b9987811fdbfbbcb3832832854f059de08e55397b2b9580e981",
+        "MandateCharger": "0x1c0993c893a3389ef49d0c5ff520ec105d6911360e6a9d5fdfd5c23c3b6ef86c",
+        "SavingsRouter": "0xbef773a75fe707ef7d8e81b0fc195c1a923c3b7b5bb809ebc9c77dd69cfa709a"
+      }
+    },
+    "10143": {
+      "network": "Monad Testnet",
+      "chainId": 10143,
+      "deployedAt": "2026-10-03T13:30:03.000Z",
+      "startBlock": 67841535,
+      "deployer": "0x41C66fc5464feF65B117e95Ea7DF46673D3E8202",
+      "eip712": {
+        "name": "Weir",
+        "version": "1"
+      },
+      "contracts": {
+        "TestStablecoin": "0xf3066908dABe11f2e72F6887D9943eeb621a0Eb9",
+        "TestSavingsVault": "0xe0cd535d298DAd5e228486a79A21176349825B8d",
+        "MandateHub": "0x08ca57f960D5D9A2b06475C6Ca4583eDa4680Bc1",
+        "MandateCharger": "0xB4333c519c9D5c300737824ca5792891DBBa9E03",
+        "SavingsRouter": "0x41dC6AE1e9939ACFd73d64e114Ee48711AB4A46E"
+      },
+      "assets": {
+        "USDC": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+        "tAUSD": "0xf3066908dABe11f2e72F6887D9943eeb621a0Eb9"
+      },
+      "savings": {
+        "tAUSD": "0xe0cd535d298DAd5e228486a79A21176349825B8d"
+      },
+      "chainlink": {
+        "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+        "simulationForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+      },
+      "transactions": {
+        "TestStablecoin": "0xb35bc3dd5c18e2c2ef769ba54d3b68f3d3b91a34083af1fd258ed6e0433f2a90",
+        "TestSavingsVault": "0x67da677ea0a3fa7a040f3a0a027eab9ba417af920c1e64472962f9217b73c003",
+        "MandateHub": "0xa0b6a56b8d8348a446bcac451ffd1b11bef7dfc6821a2f5ade183b8ff5994083",
+        "MandateCharger": "0xb888e3397e8a46dac0d39a3c24a04039f86edf761726dafb433c53af4865e793",
+        "SavingsRouter": "0x95ae2d55e1ceb91c85808869076589f5391207e8e5269f354418f19ada1716d9"
+      }
+    }
+  }
+}
