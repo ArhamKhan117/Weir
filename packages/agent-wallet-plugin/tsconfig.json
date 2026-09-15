@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // The host's declaration files use extensionless relative imports, which resolve only under the
+    // bundler rules. Relative imports here still carry `.js`, so the emitted modules load in Node.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    // Typechecking reads the shared package from source, so a clean checkout needs no prior build.
+    // The emitting config resolves it through its `exports` map, as Node does at run time.
+    "paths": {
+      "@weir/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
