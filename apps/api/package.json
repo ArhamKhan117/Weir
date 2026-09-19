@@ -1,0 +1,32 @@
+{
+  "name": "@weir/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Weir API: the relayer that lets payers install mandates without gas, the Testnet faucet, the plan and merchant store, and the indexed read model",
+  "license": "MIT",
+  "main": "./dist/main.js",
+  "scripts": {
+    "start": "tsx --env-file=../../.env --tsconfig tsconfig.json src/main.ts",
+    "start:mainnet": "tsx --env-file=../../.env.mainnet --tsconfig tsconfig.json src/main.ts",
+    "dev": "tsx watch --env-file=../../.env --tsconfig tsconfig.json src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@envio-dev/hypersync-client": "1.4.1",
+    "@hono/node-server": "2.1.1",
+    "@privy-io/server-auth": "1.32.5",
+    "@weir/shared": "workspace:*",
+    "hono": "4.13.5",
+    "postgres": "3.4.9",
+    "viem": "2.45.3",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/web-push": "3.6.4",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

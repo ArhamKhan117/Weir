@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    // Typechecking and `tsx` read the shared package from source, so a clean checkout
+    // needs no prior build. The emitting config resolves it through its `exports` map.
+    "paths": {
+      "@weir/shared": ["../../packages/shared/src/index.ts"],
+      "@weir/shared/fs": ["../../packages/shared/src/fs.ts"]
+    }
+  },
+  "include": ["src"]
+}
