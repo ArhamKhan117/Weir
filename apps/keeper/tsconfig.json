@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    // Typechecking reads workspace packages from source, so a clean checkout
+    // needs no prior build. The emitting config below resolves them through
+    // their `exports` maps instead.
+    "paths": {
+      "@weir/shared": ["../../packages/shared/src/index.ts"],
+      "@weir/shared/fs": ["../../packages/shared/src/fs.ts"]
+    }
+  },
+  // `test` holds the anvil harness the integration test imports; it is typechecked, never built.
+  "include": ["src", "test"]
+}

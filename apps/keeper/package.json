@@ -1,0 +1,24 @@
+{
+  "name": "@weir/keeper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Permissionless keeper: discovers mandates, selects the due ones, and charges them through MandateCharger",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "scripts": {
+    "start": "tsx --env-file=../../.env src/index.ts",
+    "once": "tsx --env-file=../../.env src/index.ts --once",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@envio-dev/hypersync-client": "1.4.1",
+    "@weir/shared": "workspace:*",
+    "viem": "2.45.3"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}
