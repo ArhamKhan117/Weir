@@ -1,0 +1,37 @@
+{
+  "name": "@weir/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Weir web app: checkout, the payer's payments, and the merchant dashboard",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@aurora-is-near/intents-swap-widget": "7.24.1",
+    "@aurora-is-near/intents-swap-widget-evm": "7.24.1",
+    "@category-labs/mera": "0.2.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@privy-io/react-auth": "3.3.0",
+    "@scure/bip32": "1.7.0",
+    "@scure/bip39": "2.4.0",
+    "@weir/shared": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router": "7.9.4",
+    "viem": "2.45.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "5.1.4",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vite-plugin-node-polyfills": "0.28.0"
+  }
+}
