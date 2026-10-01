@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "Weir",
+  "short_name": "Weir",
+  "description": "Direct debit for digital dollars. Say yes once, keep your money until each charge is due, and stop it in one tap.",
+  "start_url": "/payments",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f0ed",
+  "theme_color": "#f4f0ed",
+  "categories": ["finance"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Your payments", "url": "/payments", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Family support", "url": "/support", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
