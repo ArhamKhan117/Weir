@@ -1,0 +1,52 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+wallets/
+
+# --- internal tooling and notes: kept locally, never published ---
+.vocabulary-denylist
+scripts/vocab-check.mjs
+CLAUDE.md
+**/CLAUDE.md
+AGENTS.md
+**/AGENTS.md
+.claude/
+.cursor/
+docs/decisions/
+apps/landing/media-src/
+
+# --- foundry ---
+cache/
+out/
+broadcast/
+
+# --- node ---
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+.vite/
+.next/
+
+# --- runtime state (keeper cursors) ---
+.state/
+*.cursor.json
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# --- logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
