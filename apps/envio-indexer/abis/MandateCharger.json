@@ -1,0 +1,189 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "hub",
+        "type": "address",
+        "internalType": "contract IMandateHub"
+      },
+      {
+        "name": "forwarder",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "simulationForwarder",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "FORWARDER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "HUB",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IMandateHub"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SIMULATION_FORWARDER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "chargeMany",
+    "inputs": [
+      {
+        "name": "mandateIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "outcomes",
+        "type": "uint8[]",
+        "internalType": "enum MandateCharger.Outcome[]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "onReport",
+    "inputs": [
+      {
+        "name": "metadata",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "report",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "supportsInterface",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "event",
+    "name": "ChargeReverted",
+    "inputs": [
+      {
+        "name": "mandateId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "bytes4",
+        "indexed": false,
+        "internalType": "bytes4"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReportCharged",
+    "inputs": [
+      {
+        "name": "workflowId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "forwarder",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "attempted",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "charged",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InsufficientGas",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidHub",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotForwarder",
+    "inputs": [
+      {
+        "name": "sender",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  }
+]

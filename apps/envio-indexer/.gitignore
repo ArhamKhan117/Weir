@@ -1,0 +1,8 @@
+# Envio codegen output and effect caches: rebuilt by `envio codegen`, `envio start` and `pnpm test`.
+.envio/
+# Local environment for this directory, if one is kept here instead of the repository's .env.
+.env
+.env.*
+# Runtime logs.
+*.log
+logs/

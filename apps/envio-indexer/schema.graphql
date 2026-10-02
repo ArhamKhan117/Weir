@@ -1,0 +1,497 @@
+"""
+`IMandateHub.Status`, as the contract stores it.
+"""
+enum MandateStatus {
+  Active
+  Delinquent
+  Cancelled
+}
+
+"""
+What a person reads, derived by the same rules as the Weir API. `PastDue` is the API's "Past due".
+`Expired` and `Completed` are never written on chain: expiry is applied by a sweep about every
+minute at the head, so a mandate whose `expiresAt` has passed is expired whatever this says.
+"""
+enum Standing {
+  Active
+  Paused
+  PastDue
+  Cancelled
+  Expired
+  Completed
+}
+
+"""
+How a mandate bills: once per `period`, or by the second while it runs.
+"""
+enum BillingMode {
+  Periodic
+  Streaming
+}
+
+"""
+`ChargeFailed.reason`: the `REASON_*` codes in `IMandateHub.sol`.
+"""
+enum FailureReason {
+  "The payer's balance of the asset, or their vault shares, cannot cover the charge (code 1)."
+  InsufficientBalance
+  "The payer's allowance to the hub, on the asset or the vault shares, is short (code 2)."
+  InsufficientAllowance
+  "The pull could not complete; raised only while a stream is paused or cancelled (code 3)."
+  TransferRefused
+  "A code this indexer does not know."
+  Unknown
+}
+
+"""
+Who sent a charge.
+"""
+enum ChargeTrigger {
+  "A Chainlink CRE report through `MandateCharger.onReport`: `ReportCharged` in the same transaction."
+  Cre
+  "A batch through `MandateCharger.chargeMany`, the keeper's path."
+  Keeper
+  "A call to `MandateHub.charge` itself, from anyone."
+  Direct
+  "What a stream had accrued, collected as it was paused or cancelled."
+  Settlement
+}
+
+"""
+One entry on a mandate's timeline.
+"""
+enum MandateEventKind {
+  Created
+  Charged
+  ChargeFailed
+  Paused
+  Resumed
+  Cancelled
+  ManagerChanged
+  Expired
+}
+
+"""
+One Monad network the indexer reads, with every figure summed across it. Amounts are base units;
+every asset the hub accepts is a six-decimal dollar, so sums across assets are dollars.
+"""
+type Network {
+  "The chain id."
+  id: ID!
+  chainId: Int!
+  hub: String!
+  charger: String!
+  mandateCount: Int!
+  activeMandates: Int!
+  pausedMandates: Int!
+  pastDueMandates: Int!
+  completedMandates: Int!
+  expiredMandates: Int!
+  cancelledMandates: Int!
+  "Active, paused or past due."
+  liveMandates: Int!
+  "Not cancelled or expired: mandates whose standing can still change."
+  openMandates: Int!
+  payerCount: Int!
+  merchantCount: Int!
+  chargeCount: Int!
+  failureCount: Int!
+  "Base units charged, all time."
+  volume: BigInt!
+  "Monthly recurring revenue across every merchant."
+  mrr: BigInt!
+  reportCount: Int!
+  "The time every standing here was last evaluated at, unix seconds."
+  standingAsOf: BigInt!
+}
+
+"""
+A mandate: every term the payer agreed to, where it stands, and what it has paid.
+"""
+type Mandate {
+  "`<chainId>-<mandateId>`."
+  id: ID!
+  chainId: Int!
+  hub: String!
+  mandateId: BigInt!
+  payer: Payer!
+  merchant: Merchant!
+  customer: MerchantCustomer!
+  asset: String!
+  assetSymbol: String!
+  "The ERC-4626 vault drawn from, or the zero address for the payer's balance."
+  vault: String!
+  fromSavings: Boolean!
+  "A key that may pause, resume and cancel, or the zero address for none."
+  manager: String!
+  mode: BillingMode!
+  "Base units per period, or per second for a stream."
+  amount: BigInt!
+  "Seconds between charges; 0 for a stream."
+  period: Int!
+  "The first chargeable moment, or when a stream starts accruing."
+  startsAt: BigInt!
+  "The next boundary for a periodic mandate; the accrual checkpoint for a stream."
+  nextChargeAt: BigInt!
+  maxPerCharge: BigInt!
+  maxTotal: BigInt!
+  "Unix seconds, inclusive: no charge after it."
+  expiresAt: BigInt! @index
+  "The merchant's 32-byte reference, typically a plan id."
+  ref: String!
+  status: MandateStatus!
+  standing: Standing! @index
+  "Cancelled or expired: nothing about this mandate changes any more."
+  ended: Boolean! @index
+  "When the standing was last evaluated."
+  standingAsOf: BigInt!
+  "Zero while a stream runs; when it was paused while it is paused."
+  pausedAt: BigInt!
+  totalCharged: BigInt!
+  "What the lifetime cap still allows."
+  remaining: BigInt!
+  chargeCount: Int!
+  failureCount: Int!
+  lastChargedAt: BigInt
+  lastFailureAt: BigInt
+  lastFailureReason: FailureReason
+  "Base units the last failed charge needed."
+  lastFailureAmount: BigInt
+  "This mandate's share of its merchant's MRR: the monthly amount while it is Active and periodic."
+  mrr: BigInt!
+  "What it commits its payer to each month: the monthly amount while Active or PastDue and periodic."
+  committedMonthly: BigInt!
+  createdAt: BigInt!
+  createdBlock: Int!
+  createdTx: String!
+  cancelledAt: BigInt
+  cancelledBlock: Int
+  cancelledTx: String
+  cancelledBy: String
+  pauseCount: Int!
+  charges: [Charge!]! @derivedFrom(field: "mandate")
+  failures: [ChargeFailure!]! @derivedFrom(field: "mandate")
+  events: [MandateEvent!]! @derivedFrom(field: "mandate")
+}
+
+"""
+A successful charge: `Charged`.
+"""
+type Charge {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  mandate: Mandate!
+  payer: Payer!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  amount: BigInt!
+  "The mandate's lifetime total after this charge."
+  totalCharged: BigInt!
+  nextChargeAt: BigInt!
+  trigger: ChargeTrigger!
+  "A savings mandate's charge the payer's balance paid, because the vault could not: `ChargedFromBalance` just before it."
+  fromBalance: Boolean!
+  "The CRE report it was part of, when it was."
+  report: ChargerReport
+  "The account that sent the transaction."
+  sender: String!
+  timestamp: BigInt! @index
+  blockNumber: Int!
+  transactionHash: String! @index
+  logIndex: Int!
+}
+
+"""
+`ChargedFromBalance`: a charge on a mandate drawn from savings that the payer's balance paid,
+because the vault could not. The hub emits it immediately before the charge's `Charged`, which
+reads it to set `Charge.fromBalance`.
+"""
+type BalanceFallback {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  mandate: Mandate!
+  amount: BigInt!
+}
+
+"""
+A due charge the payer could not fund: `ChargeFailed`. The schedule and totals are untouched and
+the charge can be retried.
+"""
+type ChargeFailure {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  mandate: Mandate!
+  payer: Payer!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  reason: FailureReason!
+  reasonCode: Int!
+  "Base units the charge needed."
+  required: BigInt!
+  trigger: ChargeTrigger!
+  report: ChargerReport
+  sender: String!
+  timestamp: BigInt! @index
+  blockNumber: Int!
+  transactionHash: String! @index
+  logIndex: Int!
+}
+
+"""
+A charge in a batch that reverted, so nothing moved and nothing was booked: `MandateCharger.ChargeReverted`.
+"""
+type ChargeRevert {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  mandateId: BigInt!
+  "Null when the id names no mandate."
+  mandate: Mandate
+  "The revert's selector, or 0x00000000 when it carried none."
+  selector: String!
+  "The error the selector is, for example `NotDue(uint64,uint256)`, when it is one this indexer knows."
+  error: String
+  trigger: ChargeTrigger!
+  report: ChargerReport
+  sender: String!
+  timestamp: BigInt!
+  blockNumber: Int!
+  transactionHash: String! @index
+  logIndex: Int!
+}
+
+"""
+A Chainlink CRE report the charger processed: `ReportCharged`, with what its charges did.
+"""
+type ChargerReport {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  workflowId: String!
+  "The forwarder that delivered it."
+  forwarder: String!
+  "True when the CRE simulator's forwarder delivered it rather than the network's."
+  simulated: Boolean!
+  attempted: Int!
+  charged: Int!
+  "Charges the payer could not fund."
+  failed: Int!
+  "Charges that reverted: not due, cancelled, expired and so on."
+  reverted: Int!
+  "Base units the report's charges moved."
+  volume: BigInt!
+  sender: String!
+  timestamp: BigInt! @index
+  blockNumber: Int!
+  transactionHash: String!
+  charges: [Charge!]! @derivedFrom(field: "report")
+  failures: [ChargeFailure!]! @derivedFrom(field: "report")
+  reverts: [ChargeRevert!]! @derivedFrom(field: "report")
+}
+
+"""
+One entry on a mandate's timeline: every hub event about it, and its expiry.
+"""
+type MandateEvent {
+  "`<chainId>-<transaction>-<logIndex>`, or `<mandate id>-expired`."
+  id: ID!
+  chainId: Int!
+  mandate: Mandate!
+  kind: MandateEventKind!
+  "Who acted: the payer, merchant or manager for a lifecycle change, the sender for a charge."
+  actor: String
+  "The charge's amount, or what a failed charge needed."
+  amount: BigInt
+  "The new manager, for `ManagerChanged`."
+  manager: String
+  timestamp: BigInt! @index
+  "Null for an expiry, which no transaction records."
+  blockNumber: Int
+  transactionHash: String
+}
+
+"""
+A signer burned a nonce, voiding every signature that carries it: `NonceInvalidated`.
+"""
+type NonceInvalidation {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  signer: String! @index
+  nonce: BigInt!
+  timestamp: BigInt!
+  blockNumber: Int!
+  transactionHash: String!
+}
+
+"""
+Everyone who has signed a mandate, with what they pay across every merchant.
+"""
+type Payer {
+  "`<chainId>-<address>`."
+  id: ID!
+  chainId: Int!
+  address: String! @index
+  mandateCount: Int!
+  activeMandates: Int!
+  pausedMandates: Int!
+  pastDueMandates: Int!
+  completedMandates: Int!
+  expiredMandates: Int!
+  cancelledMandates: Int!
+  "Active, paused or past due: what the payments page counts as active."
+  liveMandates: Int!
+  "Periodic mandates still running or behind, scaled to thirty days, all assets."
+  committedMonthly: BigInt!
+  "Base units paid, all assets."
+  totalPaid: BigInt!
+  chargeCount: Int!
+  failureCount: Int!
+  firstSeenAt: BigInt!
+  mandates: [Mandate!]! @derivedFrom(field: "payer")
+  assets: [PayerAsset!]! @derivedFrom(field: "payer")
+  charges: [Charge!]! @derivedFrom(field: "payer")
+}
+
+"""
+A payer's figures in one asset.
+"""
+type PayerAsset {
+  "`<chainId>-<payer>-<asset>`."
+  id: ID!
+  chainId: Int!
+  payer: Payer!
+  asset: String!
+  assetSymbol: String!
+  liveMandates: Int!
+  committedMonthly: BigInt!
+  totalPaid: BigInt!
+  chargeCount: Int!
+  failureCount: Int!
+}
+
+"""
+An address charges are paid to, with its revenue and customers.
+"""
+type Merchant {
+  "`<chainId>-<address>`."
+  id: ID!
+  chainId: Int!
+  address: String! @index
+  mandateCount: Int!
+  "What the API's merchant overview counts as active."
+  activeMandates: Int!
+  pausedMandates: Int!
+  "What the API's merchant overview counts as past due."
+  pastDueMandates: Int!
+  completedMandates: Int!
+  expiredMandates: Int!
+  cancelledMandates: Int!
+  liveMandates: Int!
+  "Monthly recurring revenue, all assets: the per-asset figures in `assets` summed."
+  mrr: BigInt!
+  "Base units collected, all time, all assets."
+  revenue: BigInt!
+  chargeCount: Int!
+  failureCount: Int!
+  "Distinct payers who ever signed a mandate to it."
+  customers: Int!
+  "Distinct payers with a mandate to it that is active, paused or past due."
+  activeCustomers: Int!
+  firstSeenAt: BigInt!
+  mandates: [Mandate!]! @derivedFrom(field: "merchant")
+  assets: [MerchantAsset!]! @derivedFrom(field: "merchant")
+  customerList: [MerchantCustomer!]! @derivedFrom(field: "merchant")
+  charges: [Charge!]! @derivedFrom(field: "merchant")
+  failures: [ChargeFailure!]! @derivedFrom(field: "merchant")
+  days: [MerchantDailyStat!]! @derivedFrom(field: "merchant")
+}
+
+"""
+A merchant's figures in one asset, keyed like the API's per-symbol overview.
+"""
+type MerchantAsset {
+  "`<chainId>-<merchant>-<asset>`."
+  id: ID!
+  chainId: Int!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  activeMandates: Int!
+  pastDueMandates: Int!
+  liveMandates: Int!
+  "Monthly recurring revenue: Active periodic mandates, `amount * 30 days / period` each, rounded down."
+  mrr: BigInt!
+  revenue: BigInt!
+  chargeCount: Int!
+  failureCount: Int!
+}
+
+"""
+One payer as one merchant's customer.
+"""
+type MerchantCustomer {
+  "`<chainId>-<merchant>-<payer>`."
+  id: ID!
+  chainId: Int!
+  merchant: Merchant!
+  payer: Payer!
+  mandateCount: Int!
+  liveMandates: Int!
+  totalPaid: BigInt!
+  chargeCount: Int!
+  firstMandateAt: BigInt!
+  lastChargedAt: BigInt
+  mandates: [Mandate!]! @derivedFrom(field: "customer")
+}
+
+"""
+One UTC day across the network, for charts. A day with no activity has no row; the snapshot
+fields carry forward from the last day that has one.
+"""
+type DailyStat {
+  "`<chainId>-<YYYY-MM-DD>`."
+  id: ID!
+  chainId: Int!
+  date: String!
+  "The day's first second, unix."
+  dayStart: BigInt! @index
+  "Base units charged, all assets."
+  volume: BigInt!
+  charges: Int!
+  failures: Int!
+  newMandates: Int!
+  cancellations: Int!
+  "Mandates whose `expiresAt` fell on this day."
+  expirations: Int!
+  reports: Int!
+  "Active mandates at the day's last change."
+  activeMandates: Int!
+  "MRR at the day's last change."
+  mrr: BigInt!
+}
+
+"""
+One UTC day for one merchant, for its revenue chart.
+"""
+type MerchantDailyStat {
+  "`<chainId>-<merchant>-<YYYY-MM-DD>`."
+  id: ID!
+  chainId: Int!
+  merchant: Merchant!
+  date: String!
+  dayStart: BigInt! @index
+  volume: BigInt!
+  charges: Int!
+  failures: Int!
+  newMandates: Int!
+  cancellations: Int!
+  expirations: Int!
+  activeMandates: Int!
+  mrr: BigInt!
+}

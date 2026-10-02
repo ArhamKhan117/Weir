@@ -1,0 +1,37 @@
+{
+  "name": "weir-envio-indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Weir on Envio HyperIndex: a GraphQL API over mandates, charges, CRE reports and merchant revenue on Monad",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "sync": "tsx scripts/sync.ts",
+    "sync:check": "tsx scripts/sync.ts --check",
+    "codegen": "envio codegen",
+    "typecheck": "envio codegen && tsc --noEmit",
+    "test": "envio codegen && vitest run",
+    "start": "envio start",
+    "local": "tsx scripts/local.ts",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "dependencies": {
+    "envio": "3.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "postgres": "3.4.8",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "viem": "2.54.0",
+    "vitest": "4.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
