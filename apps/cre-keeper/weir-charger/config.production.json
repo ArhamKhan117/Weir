@@ -1,0 +1,11 @@
+{
+  "schedule": "0 */5 * * * *",
+  "chainSelectorName": "monad-mainnet",
+  "hub": "0x184c6c26C1cB7f79885ED7c71e810E564CEec6a0",
+  "charger": "0xC555DBb7059B46fa4D3de4b6602E3c52cacCFf03",
+  "pageSize": 200,
+  "maxBatch": 17,
+  "gasPerMandate": 550000,
+  "streamMinCharge": "10000",
+  "streamMaxAgeSeconds": 3600
+}

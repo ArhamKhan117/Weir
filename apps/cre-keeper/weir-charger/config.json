@@ -1,0 +1,10 @@
+{
+  "schedule": "*/30 * * * * *",
+  "chainSelectorName": "monad-testnet",
+  "hub": "0x08ca57f960D5D9A2b06475C6Ca4583eDa4680Bc1",
+  "charger": "0xB4333c519c9D5c300737824ca5792891DBBa9E03",
+  "pageSize": 200,
+  "maxBatch": 50,
+  "streamMinCharge": "10000",
+  "streamMaxAgeSeconds": 3600
+}

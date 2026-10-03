@@ -1,0 +1,16 @@
+# Per-workflow settings, one block per target. `workflow-path` is the entry file and
+# `config-path` the settings the code reads as `runtime.config`. The workflow reads no secrets.
+
+staging-settings:
+  user-workflow:
+    workflow-name: "weir-charger-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.json"
+
+production-settings:
+  user-workflow:
+    workflow-name: "weir-charger"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"

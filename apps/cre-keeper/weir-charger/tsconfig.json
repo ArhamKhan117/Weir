@@ -1,0 +1,38 @@
+{
+  // The CRE compiler's tsconfig, standing alone on purpose.
+  //
+  // `cre workflow simulate` compiles `main.ts` to WebAssembly with Bun and type-checks it first
+  // with the TypeScript the SDK installs beside it here (5.4), which is older than the one the
+  // workspace pins. Extending `tsconfig.base.json` would tie the workflow to whichever options the
+  // workspace adopts next, some of which that TypeScript refuses; so the same strictness is written
+  // out, with the bundler resolution the SDK's declarations need (they use extensionless imports).
+  //
+  // The workspace type-checks this project too (`pnpm --filter @weir/cre-keeper typecheck` runs
+  // `tsc -p weir-charger`), so it must pass under both TypeScripts.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  // The entry and its wiring; `../src` is reached through their imports, tests excluded.
+  "include": ["*.ts"],
+  "exclude": ["node_modules"]
+}

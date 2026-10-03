@@ -1,0 +1,14 @@
+{
+  "name": "weir-charger-workflow",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The CRE workflow folder. `bun install` here installs the SDK the CRE CLI compiles with and runs cre-setup for the WebAssembly toolchain; the pnpm workspace package one level up owns the type check, the tests and the lint.",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "bunx cre-setup"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "1.22.0"
+  }
+}
