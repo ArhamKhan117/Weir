@@ -1,0 +1,14 @@
+# Project-wide settings for the CRE CLI, one block per target: the RPC each chain is read and
+# written through. The simulator uses these directly; a deployed workflow uses the DON's own.
+# CRE supports Monad Testnet from CLI v1.30.0 and TypeScript SDK v1.19.0, and Mainnet from
+# CLI v1.29.0 and SDK v1.18.0.
+
+staging-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz
+
+production-settings:
+  rpcs:
+    - chain-name: monad-mainnet
+      url: https://rpc.monad.xyz

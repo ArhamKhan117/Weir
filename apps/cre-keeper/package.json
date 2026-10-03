@@ -1,0 +1,22 @@
+{
+  "name": "@weir/cre-keeper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Chainlink CRE workflow that reads MandateHub on a cron and charges the due mandates through MandateCharger by signed report",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p weir-charger/tsconfig.json",
+    "setup": "bun install --cwd weir-charger",
+    "simulate": "sh -c 'cre workflow simulate weir-charger --target staging-settings --env ../../.env --non-interactive --trigger-index 0 \"$@\"; status=$?; rm -f weir-charger/.cre_build_tmp.js; exit $status' --"
+  },
+  "dependencies": {
+    "viem": "2.45.3"
+  },
+  "devDependencies": {
+    "@chainlink/cre-sdk": "1.22.0",
+    "@types/node": "20.19.43",
+    "@weir/shared": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

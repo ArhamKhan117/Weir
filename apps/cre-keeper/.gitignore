@@ -1,0 +1,8 @@
+# The SDK the CRE CLI compiles with, installed by `bun install` in the workflow folder.
+weir-charger/node_modules/
+# What `cre workflow simulate` and `cre-compile` leave beside the entry file.
+weir-charger/wasm/
+weir-charger/*.wasm
+weir-charger/main.js
+weir-charger/.cre_build_tmp.js
+weir-charger/.workflow-temp-*
