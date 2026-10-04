@@ -1,0 +1,335 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Geist is self-hosted by next/font, which exposes it as this variable. */
+* {
+  font-family: var(--font-geist), "Geist", sans-serif;
+}
+
+/* Descendant selector on purpose: the global `*` rule above would otherwise win
+   on every child. There is no webfont here, only the system stack. */
+.font-helvetica-neue,
+.font-helvetica-neue * {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* The `*` rule above wins over inherited families, so mono has to be re-declared
+   on descendants the same way `.font-helvetica-neue` does. */
+.font-code,
+.font-code * {
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html {
+  height: 100%;
+}
+
+/* min-height, not height: the document grows past one viewport once the
+   scroll-locked intro releases. */
+body {
+  min-height: 100%;
+  background: #f4f0ed;
+}
+
+/*
+ * The full-bleed stills. AVIF where the browser takes it, WebP otherwise; the plain url() first is
+ * for browsers that do not know image-set() at all. Classes rather than inline styles so the
+ * fallback chain lives in one place.
+ */
+.img-hero-frame {
+  background-image: url("/media/hero-frame.webp");
+  background-image: image-set(url("/media/hero-frame.avif") type("image/avif"), url("/media/hero-frame.webp") type("image/webp"));
+}
+.img-hero-glow {
+  background-image: url("/media/hero-glow.webp");
+  background-image: image-set(url("/media/hero-glow.avif") type("image/avif"), url("/media/hero-glow.webp") type("image/webp"));
+}
+.img-tile-flood {
+  background-image: url("/media/tile-flood.webp");
+  background-image: image-set(url("/media/tile-flood.avif") type("image/avif"), url("/media/tile-flood.webp") type("image/webp"));
+}
+.img-tile-water {
+  background-image: url("/media/tile-water.webp");
+  background-image: image-set(url("/media/tile-water.avif") type("image/avif"), url("/media/tile-water.webp") type("image/webp"));
+}
+
+/* Tall screens get the portrait renders, the last frame of the portrait intro. Keep the query in
+   step with PORTRAIT_QUERY in media.ts. */
+@media (max-aspect-ratio: 4/5) {
+  .img-tile-water {
+    background-image: url("/media/tile-water-portrait.webp");
+    background-image: image-set(url("/media/tile-water-portrait.avif") type("image/avif"), url("/media/tile-water-portrait.webp") type("image/webp"));
+  }
+  .img-tile-flood {
+    background-image: url("/media/tile-flood-portrait.webp");
+    background-image: image-set(url("/media/tile-flood-portrait.avif") type("image/avif"), url("/media/tile-flood-portrait.webp") type("image/webp"));
+  }
+}
+
+@keyframes fadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.anim-stagger {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeSlideUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-fade {
+  opacity: 0;
+  animation: fadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-stagger,
+  .anim-fade {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Entrance used by the quote carousel. Distinct from `fadeSlideUp` above: this
+   one travels further and is driven by an IntersectionObserver, not by class
+   swap on mount. */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Animated gradient behind the closing call to action.
+   `@property` is what makes this work without JavaScript: declaring the custom
+   properties as <percentage> lets the browser interpolate them, so the blobs
+   drift and breathe instead of jumping between keyframes.
+   Colours are Weir's: soft teal over warm paper, the same register as the app. */
+@property --w-x1 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 10%;
+}
+@property --w-y1 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 10%;
+}
+@property --w-x2 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 90%;
+}
+@property --w-y2 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 10%;
+}
+@property --w-x3 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 10%;
+}
+@property --w-y3 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 90%;
+}
+@property --w-x4 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 90%;
+}
+@property --w-y4 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 90%;
+}
+@property --w-s1 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 55%;
+}
+@property --w-s2 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 55%;
+}
+@property --w-s3 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 55%;
+}
+@property --w-s4 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 55%;
+}
+
+.weir-gradient {
+  background-color: #0b2c29;
+  background-image:
+    radial-gradient(circle at var(--w-x1) var(--w-y1), #3fae9f 0px, transparent var(--w-s1)),
+    radial-gradient(circle at var(--w-x2) var(--w-y2), #0e6e64 0px, transparent var(--w-s2)),
+    radial-gradient(circle at var(--w-x3) var(--w-y3), #7cc8bb 0px, transparent var(--w-s3)),
+    radial-gradient(circle at var(--w-x4) var(--w-y4), #1f8f81 0px, transparent var(--w-s4));
+  animation:
+    w-blob1 9s ease-in-out infinite,
+    w-blob2 11s ease-in-out infinite,
+    w-blob3 10s ease-in-out infinite,
+    w-blob4 12s ease-in-out infinite,
+    w-size1 7s ease-in-out infinite,
+    w-size2 8.5s ease-in-out infinite,
+    w-size3 7.5s ease-in-out infinite,
+    w-size4 9.5s ease-in-out infinite;
+}
+
+@keyframes w-blob1 {
+  0%,
+  100% {
+    --w-x1: 5%;
+    --w-y1: 5%;
+  }
+  25% {
+    --w-x1: 45%;
+    --w-y1: 20%;
+  }
+  50% {
+    --w-x1: 30%;
+    --w-y1: 55%;
+  }
+  75% {
+    --w-x1: 0%;
+    --w-y1: 30%;
+  }
+}
+@keyframes w-blob2 {
+  0%,
+  100% {
+    --w-x2: 95%;
+    --w-y2: 5%;
+  }
+  33% {
+    --w-x2: 55%;
+    --w-y2: 35%;
+  }
+  66% {
+    --w-x2: 80%;
+    --w-y2: 65%;
+  }
+}
+@keyframes w-blob3 {
+  0%,
+  100% {
+    --w-x3: 5%;
+    --w-y3: 95%;
+  }
+  40% {
+    --w-x3: 45%;
+    --w-y3: 65%;
+  }
+  70% {
+    --w-x3: 25%;
+    --w-y3: 100%;
+  }
+}
+@keyframes w-blob4 {
+  0%,
+  100% {
+    --w-x4: 95%;
+    --w-y4: 95%;
+  }
+  30% {
+    --w-x4: 60%;
+    --w-y4: 70%;
+  }
+  60% {
+    --w-x4: 100%;
+    --w-y4: 50%;
+  }
+}
+
+@keyframes w-size1 {
+  0%,
+  100% {
+    --w-s1: 45%;
+  }
+  50% {
+    --w-s1: 80%;
+  }
+}
+@keyframes w-size2 {
+  0%,
+  100% {
+    --w-s2: 45%;
+  }
+  50% {
+    --w-s2: 85%;
+  }
+}
+@keyframes w-size3 {
+  0%,
+  100% {
+    --w-s3: 45%;
+  }
+  50% {
+    --w-s3: 78%;
+  }
+}
+@keyframes w-size4 {
+  0%,
+  100% {
+    --w-s4: 45%;
+  }
+  50% {
+    --w-s4: 82%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weir-gradient {
+    animation: none;
+  }
+}

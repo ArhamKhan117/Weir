@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+*.tsbuildinfo
+.vercel
+.env*
+media-src/out
+next-env.d.ts
