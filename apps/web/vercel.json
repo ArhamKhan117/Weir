@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @weir/shared build && pnpm --filter @weir/web build",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/((?!assets/|media/|sw\\.js|favicon\\.svg).*)", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "cache-control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [{ "key": "cache-control", "value": "no-cache" }]
+    }
+  ]
+}
