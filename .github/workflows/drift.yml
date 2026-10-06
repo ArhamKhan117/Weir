@@ -1,0 +1,53 @@
+name: Generated code
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  abis:
+    name: ABIs match the contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: forge build
+      - name: Generated ABIs match the compiled contracts
+        run: pnpm --filter @weir/shared gen:abi --check
+
+  indexer:
+    name: Envio indexer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/envio-indexer
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # Outside the workspace, with a lockfile of its own, the shape the hosted service builds.
+      - run: pnpm install --frozen-lockfile --ignore-workspace
+      - name: Config matches the deployment record
+        run: pnpm sync:check
+      - name: Handler and model tests
+        run: pnpm test

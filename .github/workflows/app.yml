@@ -1,0 +1,68 @@
+name: App and API
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      # The API's tests make a database of their own (weir_test) on this server.
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weir
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/weir
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      # Anvil, for the local-chain integration tests, and forge, which builds the artifacts they deploy.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The CRE workflow's SDK is installed with Bun, as the CRE CLI expects.
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @weir/cre-keeper setup
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test

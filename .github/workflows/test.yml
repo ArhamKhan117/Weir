@@ -33,7 +33,7 @@ jobs:
       # EIP-170) and would fail the check for no operational reason. `--skip test` alone
       # is not enough: it expands to `*.t.sol`, which does not cover
       # test/invariant/handlers/*.sol. Skipping the whole test tree keeps the EIP-170 and
-      # EIP-3860 guard on src/ (MandateHub: 10,036 B runtime / 10,649 B initcode).
+      # EIP-3860 guard on src/ (MandateHub: 14,634 B runtime / 15,830 B initcode).
       - name: Run Forge build
         run: forge build --sizes --skip 'test/**'
 

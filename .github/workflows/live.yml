@@ -1,0 +1,56 @@
+name: Live deployment
+
+permissions: {}
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    name: Contracts on chain
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chain: 143
+            rpc: https://rpc.monad.xyz
+          - chain: 10143
+            rpc: https://testnet-rpc.monad.xyz
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Every recorded contract is deployed and wired as recorded
+        env:
+          MONAD_CHAIN_ID: ${{ matrix.chain }}
+        run: forge script script/VerifyDeployment.s.sol:VerifyDeployment --rpc-url ${{ matrix.rpc }}
+
+  services:
+    name: Live services answer
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: APIs are healthy on both networks
+        run: |
+          for api in https://api-mainnet-production-fc07.up.railway.app https://api-testnet-production-9789.up.railway.app; do
+            body=$(curl -sf --retry 3 --retry-delay 5 "$api/health")
+            echo "$api: $body" | head -c 300; echo
+            echo "$body" | jq -e '.database == true and .relayer.configured == true' > /dev/null
+          done
+      - name: The app and the website load
+        run: |
+          curl -sf --retry 3 -o /dev/null https://app-weirpay.vercel.app
+          curl -sf --retry 3 -o /dev/null https://weirpay.vercel.app
+      - name: Envio HyperIndex serves both networks
+        run: |
+          body=$(curl -sf --retry 3 https://indexer.dev.hyperindex.xyz/6077704/v1/graphql \
+            -H 'content-type: application/json' -d '{"query":"{ Network { chainId mandateCount } }"}')
+          echo "$body"
+          echo "$body" | jq -e '.data.Network | length == 2' > /dev/null
