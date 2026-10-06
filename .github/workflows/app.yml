@@ -53,7 +53,7 @@ jobs:
       - name: Install
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @weir/cre-keeper setup
+          pnpm --filter @weir/cre-keeper run setup
 
       - name: Build contracts
         run: forge build
