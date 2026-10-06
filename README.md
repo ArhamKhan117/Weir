@@ -38,6 +38,7 @@ The app and the website switch between the two.
 | API, Mainnet | [api-mainnet-production-fc07.up.railway.app/health](https://api-mainnet-production-fc07.up.railway.app/health) |
 | API, Testnet | [api-testnet-production-9789.up.railway.app/health](https://api-testnet-production-9789.up.railway.app/health) |
 | Live stats (Envio HyperIndex) | [api-mainnet-production-fc07.up.railway.app/v1/stats](https://api-mainnet-production-fc07.up.railway.app/v1/stats) |
+| Envio HyperIndex GraphQL (both networks) | `https://indexer.dev.hyperindex.xyz/6077704/v1/graphql` |
 
 A keeper charges what is due on each network every few seconds, and the Envio HyperIndex project indexes both, all hosted on Railway.
 

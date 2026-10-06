@@ -53,6 +53,37 @@ While the indexer catches up it runs about once an hour of blocks, and it dates 
 Every mandate field is rebuilt from events alone (the checkpoint shift on resume included), so a full sync runs at HyperSync's speed and `pnpm verify` finds every mandate equal to `getMandate`, field for field.
 Every aggregate is kept by one function, `restate` in `src/books.ts`, that carries a standing change into every count, MRR and commitment at once; the handler tests check each aggregate against the mandates it sums.
 
+## Live
+
+The index runs on Envio's hosted service, synced on Monad Mainnet and Testnet through HyperSync, and serves GraphQL publicly:
+
+```
+https://indexer.dev.hyperindex.xyz/6077704/v1/graphql
+```
+
+Try it:
+
+```bash
+curl -s https://indexer.dev.hyperindex.xyz/6077704/v1/graphql -H 'content-type: application/json' \
+  -d '{"query":"{ Network { chainId mandateCount chargeCount volume mrr reportCount } }"}'
+```
+
+```graphql
+# Businesses by revenue, with MRR and customers
+{ Merchant(order_by: {revenue: desc}, limit: 5) { id revenue mrr customers activeCustomers chargeCount } }
+
+# Thirty days of network volume
+{ DailyStat(where: {chainId: {_eq: 10143}}, order_by: {dayStart: desc}, limit: 30) { date volume charges newMandates } }
+
+# Charges sent by the Chainlink CRE workflow, with their report
+{ Charge(where: {trigger: {_eq: "Cre"}}) { amount transactionHash report { attempted charged volume } } }
+
+# One mandate's timeline
+{ MandateEvent(where: {mandate_id: {_eq: "10143-4"}}, order_by: {timestamp: asc}) { kind amount timestamp transactionHash } }
+```
+
+The same index also runs self-hosted beside the Weir API on Railway, which is the copy the app's Revenue section and home stats read.
+
 ## What reads it
 
 The Weir app's features read this index, through the API, which queries its database read only (`ENVIO_DATABASE_URL`, `apps/api/src/analytics/envio.ts`):
