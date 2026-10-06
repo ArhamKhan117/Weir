@@ -23,8 +23,6 @@
   <a href="PITCH_VIDEO_URL"><b>Pitch video</b></a>
   &nbsp;·&nbsp;
   <a href="https://x.com/weirstudio"><b>X @weirstudio</b></a>
-  &nbsp;·&nbsp;
-  <a href="SUBMISSION_URL"><b>Submission</b></a>
 </p>
 
 # Weir
