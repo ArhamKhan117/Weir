@@ -6,6 +6,8 @@ export default tseslint.config(
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
+      // Vite's dependency pre-bundle cache, written by the dev server.
+      "**/.vite/**",
       // Vendored dependencies and Foundry build artifacts are not ours to lint.
       "lib/**",
       "out/**",

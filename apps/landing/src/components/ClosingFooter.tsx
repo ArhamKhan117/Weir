@@ -3,6 +3,16 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { APP_URL } from "../app-url";
 
+const X_URL = "https://x.com/weirstudio";
+
+function XLogo({ size = 14 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 const FAQS: { question: string; answer: string }[] = [
   {
     question: "What do I need to get started?",
@@ -51,6 +61,7 @@ const FOOTER_LINKS: { heading: string; items: { label: string; href: string; ext
       { label: "Open the app", href: APP_URL, external: true },
       { label: "FAQ", href: "#faq" },
       { label: "Monad", href: "https://www.monad.xyz", external: true },
+      { label: "Follow on X", href: X_URL, external: true },
     ],
   },
 ];
@@ -211,7 +222,19 @@ export function ClosingFooter({ logoSrc, faqId }: { logoSrc: string; faqId?: str
 
           <div className="flex flex-col items-center gap-[15px] border-t border-[#f0f0f0] pb-[10px] pt-[25px] text-[0.85rem] text-[#888] min-[480px]:flex-row min-[480px]:justify-between">
             <span>Weir, 2026</span>
-            <span>Live on Monad Mainnet</span>
+            <div className="flex items-center gap-4">
+              <span>Live on Monad Mainnet</span>
+              <a
+                href={X_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Weir on X"
+                title="@weirstudio on X"
+                className="-my-2 -mr-[9px] inline-flex h-8 w-8 items-center justify-center rounded-full text-[#888] transition-colors duration-200 hover:bg-[#f0f0f0] hover:text-[#18161B]"
+              >
+                <XLogo />
+              </a>
+            </div>
           </div>
         </div>
       </footer>

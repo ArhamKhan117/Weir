@@ -1,3 +1,32 @@
+<p align="center">
+  <img src="assets/readme/banner.webp" alt="Weir. Say yes once. Pay when it's due. Direct debit for digital dollars, live on Monad Mainnet." width="100%">
+</p>
+
+<p align="center">
+  <a href="https://app-weirpay.vercel.app"><img src="https://img.shields.io/badge/live-Monad%20Mainnet-0e6e64?style=flat-square" alt="Live on Monad Mainnet"></a>
+  <a href="https://monad.xyz/developers/hackathons/metropolis"><img src="https://img.shields.io/badge/Monad%20Metropolis-Track%2002-18161B?style=flat-square" alt="Monad Metropolis, Track 02"></a>
+  <a href="docs/verification.md"><img src="https://img.shields.io/badge/contracts-verified-0e6e64?style=flat-square" alt="Contracts verified on MonadVision, Monadscan and Sourcify"></a>
+  <a href="https://github.com/ArhamKhan117/Weir/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/ArhamKhan117/Weir/test.yml?branch=master&style=flat-square&label=contracts" alt="Contract tests"></a>
+  <a href="https://github.com/ArhamKhan117/Weir/actions/workflows/app.yml"><img src="https://img.shields.io/github/actions/workflow/status/ArhamKhan117/Weir/app.yml?branch=master&style=flat-square&label=app%20and%20API" alt="App and API tests"></a>
+  <a href="https://github.com/ArhamKhan117/Weir/actions/workflows/live.yml"><img src="https://img.shields.io/github/actions/workflow/status/ArhamKhan117/Weir/live.yml?branch=master&style=flat-square&label=live%20deployment" alt="Live deployment check"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-18161B?style=flat-square" alt="MIT license"></a>
+  <a href="https://x.com/weirstudio"><img src="https://img.shields.io/badge/@weirstudio-18161B?style=flat-square&logo=x&logoColor=white" alt="Weir on X"></a>
+</p>
+
+<p align="center">
+  <a href="https://app-weirpay.vercel.app"><b>Open the app</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://weirpay.vercel.app"><b>Website</b></a>
+  &nbsp;·&nbsp;
+  <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
+  &nbsp;·&nbsp;
+  <a href="PITCH_VIDEO_URL"><b>Pitch video</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://x.com/weirstudio"><b>X @weirstudio</b></a>
+  &nbsp;·&nbsp;
+  <a href="SUBMISSION_URL"><b>Submission</b></a>
+</p>
+
 # Weir
 
 **Direct debit for digital dollars, live on Monad Mainnet.**
@@ -7,10 +36,23 @@ Say yes once to a subscription, a meter that bills by the second, or a weekly pa
 Your money stays in your own account, earning, until the moment each charge is due.
 Either side can stop it in one tap.
 
-> **App:** [app-weirpay.vercel.app](https://app-weirpay.vercel.app) (Mainnet by default; switch to Testnet in the header to try it free)
-> **Website:** [weirpay.vercel.app](https://weirpay.vercel.app)
-> Demo video: `<link to the demo video>`
-> Write-up: `<link to the submission profile>`
+> [!TIP]
+> **Try it free.** Open [the app](https://app-weirpay.vercel.app) and switch to Testnet in the header: the faucet gives you test dollars, and a passkey is all you need.
+> No wallet, no seed phrase, no gas token.
+
+## Contents
+
+[In 30 seconds](#in-30-seconds) ·
+[How a payment works](#how-a-payment-works) ·
+[Live on Monad](#live-on-monad) ·
+[Proven on Mainnet](#proven-on-mainnet) ·
+[Who it is for](#who-it-is-for) ·
+[The mandate](#the-mandate) ·
+[Architecture](#architecture) ·
+[Built on Monad](#built-on-monad) ·
+[Safety](#safety) ·
+[Run it locally](#run-it-locally) ·
+[Credits](#credits-and-disclosures)
 
 ## In 30 seconds
 
@@ -26,6 +68,12 @@ Banks solved this long ago with the direct debit mandate: a standing yes, capped
 | A stop button that always works | One tap pauses or cancels on chain, with nobody's permission |
 | Billing by the second | Monad's sub-second blocks make per-second streams practical |
 
+## How a payment works
+
+<p align="center">
+  <img src="assets/readme/flow.png" alt="How a payment works, in four steps. 1, the payer says yes once with a passkey: the owner key signs the terms and a permit, and a session key stays on the device. 2, Weir's relayer submits one transaction and pays the fee. 3, MandateHub charges when due, through the keeper or a Chainlink CRE report, and refuses anything early or over the limits. 4, the money goes straight from the payer's balance or savings to the business. Any time, the session key stops it in one tap." width="100%">
+</p>
+
 ## Live on Monad
 
 Weir runs on **Monad Mainnet** with real USDC and AUSD, and on **Monad Testnet** with test dollars for trying it for free.
@@ -38,7 +86,8 @@ The app and the website switch between the two.
 | API, Mainnet | [api-mainnet-production-fc07.up.railway.app/health](https://api-mainnet-production-fc07.up.railway.app/health) |
 | API, Testnet | [api-testnet-production-9789.up.railway.app/health](https://api-testnet-production-9789.up.railway.app/health) |
 | Live stats (Envio HyperIndex) | [api-mainnet-production-fc07.up.railway.app/v1/stats](https://api-mainnet-production-fc07.up.railway.app/v1/stats) |
-| Envio HyperIndex GraphQL (both networks) | `https://indexer.dev.hyperindex.xyz/6077704/v1/graphql` |
+| Envio HyperIndex GraphQL (both networks) | `https://indexer.dev.hyperindex.xyz/6077704/v1/graphql` ([example queries](apps/envio-indexer/README.md#live)) |
+| X | [@weirstudio](https://x.com/weirstudio) |
 
 A keeper charges what is due on each network every few seconds, and the Envio HyperIndex project indexes both, all hosted on Railway.
 
@@ -76,7 +125,11 @@ None of them sees a seed phrase, a gas token or a wallet extension; they see a c
 - **People in high-inflation countries who keep their money in dollars.** School fees, rent and phone bills come out on schedule, while the dollars sit earning in savings until each one is due, and no bill can ever take more than its limit.
 - **Heavy AI-tool users and their agents.** Pay by the second, only while a tool is in use, instead of a stack of monthly plans; an agent can subscribe and stop on its own with `mm weir`.
 
-## What you can do
+<p align="center">
+  <img src="assets/readme/family.png" alt="Family support. Three relatives, Sara in the UAE giving $50 a month from her balance, Daniel in the UK sending $25 once, and Omar in Saudi Arabia giving $100 a month from savings, each pay Ammi in Pakistan directly through their own capped mandate. Amounts are shown in rupees, from Chainlink feeds on Monad where one exists and a daily market rate otherwise." width="100%">
+</p>
+
+### What you can do
 
 - **Subscribe at a checkout.** A business shares a link; you approve with your passkey in two signatures and no transaction.
 - **Manage your payments.** See everything running, pause or stop any of it, move money into savings, add money from other chains, get a reminder the day before a charge.
@@ -85,7 +138,11 @@ None of them sees a seed phrase, a gas token or a wallet extension; they see a c
 - **Install it.** Weir adds to a phone's home screen and opens like an app.
 - **Let an agent pay.** `mm weir` lets a MetaMask Agent Wallet subscribe and manage its payments by signing alone.
 
-## How it works
+## The mandate
+
+<p align="center">
+  <img src="assets/readme/mandate.png" alt="What a mandate allows and what it never will. A $9.99 monthly plan pays one business, at most $9.99 per charge and $119.88 in total, nothing after its end date, drawing from savings first. The session key on the device can only pause, resume and cancel. Nothing can raise a limit, change who is paid, charge early or hold the money. A mandate runs, can be paused and resumed, and ends when its cap is reached, its end date passes, or it is cancelled." width="100%">
+</p>
 
 **A mandate** is a standing authorization from one payer to one merchant with three limits: per charge, lifetime total, and an expiry.
 No code path can raise a limit, change who gets paid, or freeze the money, and the contract never holds a cent.
@@ -109,20 +166,17 @@ A charge the payer cannot fund moves nothing; the mandate is marked past due and
 
 ## Architecture
 
-```
- payer (passkey) ──signs──▶ web app ──▶ API: relayer + index ──▶ MandateHub ◀── MandateCharger ◀── keeper
-                                              │                  │      ▲            ▲
-                                              ▼                  ▼      │            └── Chainlink CRE workflow
-                                     Postgres (HyperSync)   SavingsRouter ──▶ Morpho vaults
- merchant (Privy) ──▶ dashboard, plans, webhooks                Envio HyperIndex ◀── events
-```
+<p align="center">
+  <img src="assets/readme/architecture.png" alt="Architecture. Payers, families, businesses and AI agents only sign. Weir's API and relayer, the keeper, a Chainlink CRE workflow and an Envio HyperIndex indexer relay, charge and index, one allowlisted transaction at a time. The contracts on Monad, MandateHub, MandateCharger and SavingsRouter, hold every rule." width="100%">
+</p>
 
 - **Contracts** (`src/`): `MandateHub` holds every mandate and moves money only from payer to merchant; `MandateCharger` charges many at once and takes Chainlink CRE reports; `SavingsRouter` moves a payer's dollars in and out of savings on a permit. No owner, no fee, no upgrade.
 - **API** (`apps/api`): relays signed installs and actions so the payer never pays gas, serves plans, merchants and family support, and keeps an index of every mandate and charge, caught up with HyperSync.
 - **Keeper** (`apps/keeper`) and **CRE workflow** (`apps/cre-keeper`): two independent ways to charge what is due; anyone else may charge too.
+- **Indexer** (`apps/envio-indexer`): Envio HyperIndex aggregates both networks into revenue, MRR and daily volume for the dashboard and the website.
 - **App** (`apps/web`) and **website** (`apps/landing`): the product, on Mainnet or Testnet, and the site that explains it.
 
-## Tech stack
+### Tech stack
 
 Solidity 0.8.25 with Foundry; TypeScript throughout; viem; React 19 with Vite and React Router; Next.js for the website; Hono and Postgres for the API; Mera passkeys; Privy; Aurora Intents; Chainlink CRE; Envio HyperIndex and HyperSync; web-push.
 
@@ -203,6 +257,7 @@ Add `?devkey=1` to the app's address in development to use a local stand-in for 
 | `apps/web` | The app: checkout, payments, family support, the business dashboard |
 | `apps/landing` | The website, with a live mandate count read from the chain |
 | `packages/agent-wallet-plugin` | `mm weir` ([README](packages/agent-wallet-plugin/README.md)) |
+| `tools/readme-art` | Draws this README's banner and diagrams from the app's own design tokens and typeface (`assets/readme`) |
 
 <details>
 <summary>Deploying</summary>
@@ -251,6 +306,7 @@ Then add the app's domain to Privy's allowed domains and to each API's `API_ALLO
 ## Credits and disclosures
 
 Built by arhamkhan for Monad Metropolis.
+Follow along on X at [@weirstudio](https://x.com/weirstudio).
 
 **AI tools.**
 Development used AI coding assistants, mainly Claude Code, for writing and reviewing code, tests and documentation, under the author's direction.
