@@ -7,7 +7,8 @@ Say yes once to a subscription, a meter that bills by the second, or a weekly pa
 Your money stays in your own account, earning, until the moment each charge is due.
 Either side can stop it in one tap.
 
-> Live app: `<link to the hosted app>`
+> **App:** [app-weirpay.vercel.app](https://app-weirpay.vercel.app) (Mainnet by default; switch to Testnet in the header to try it free)
+> **Website:** [weirpay.vercel.app](https://weirpay.vercel.app)
 > Demo video: `<link to the demo video>`
 > Write-up: `<link to the submission profile>`
 
@@ -29,6 +30,16 @@ Banks solved this long ago with the direct debit mandate: a standing yes, capped
 
 Weir runs on **Monad Mainnet** with real USDC and AUSD, and on **Monad Testnet** with test dollars for trying it for free.
 The app and the website switch between the two.
+
+| Service | Where |
+| --- | --- |
+| App | [app-weirpay.vercel.app](https://app-weirpay.vercel.app) |
+| Website | [weirpay.vercel.app](https://weirpay.vercel.app) |
+| API, Mainnet | [api-mainnet-production-fc07.up.railway.app/health](https://api-mainnet-production-fc07.up.railway.app/health) |
+| API, Testnet | [api-testnet-production-9789.up.railway.app/health](https://api-testnet-production-9789.up.railway.app/health) |
+| Live stats (Envio HyperIndex) | [api-mainnet-production-fc07.up.railway.app/v1/stats](https://api-mainnet-production-fc07.up.railway.app/v1/stats) |
+
+A keeper charges what is due on each network every few seconds, and the Envio HyperIndex project indexes both, all hosted on Railway.
 
 | | Mainnet (143) | Testnet (10143) |
 | --- | --- | --- |
@@ -213,16 +224,17 @@ Then point the CRE configs and the indexer at the new record (`pnpm sync` in `ap
 <details>
 <summary>Hosting</summary>
 
-**Railway: the API and the keeper, once per network.**
-One image (`Dockerfile`, `railway.json`) runs either; `WEIR_SERVICE` picks which.
+**Railway: the API and the keeper once per network, the indexer, and Postgres.**
+One image (`Dockerfile`, `railway.json`, `.railwayignore`) runs the API or the keeper; `WEIR_SERVICE` picks which.
 
-| Service | `WEIR_SERVICE` | Settings |
+| Service | Image | Settings |
 | --- | --- | --- |
-| api-mainnet | `api` | the `.env.mainnet` values for the API, `DATABASE_URL` from its own Postgres, `API_ALLOWED_ORIGINS` set to the app's URL |
-| keeper-mainnet | `keeper` | the `.env.mainnet` values for the keeper |
-| api-testnet, keeper-testnet | as above | the `.env` values |
+| api-mainnet, api-testnet | `Dockerfile`, `WEIR_SERVICE=api` | that network's API values from `.env.mainnet` or `.env`, `DATABASE_URL` (its own database), `ENVIO_DATABASE_URL`, `API_ALLOWED_ORIGINS` set to the app and the website |
+| keeper-mainnet, keeper-testnet | `Dockerfile`, `WEIR_SERVICE=keeper` | that network's keeper values |
+| envio | `apps/envio-indexer/Dockerfile` (`railway up apps/envio-indexer --path-as-root`) | `ENVIO_API_TOKEN`, `ENVIO_PG_*` for its own database |
+| Postgres | Railway's | one database per API and one for the indexer |
 
-Each API needs its own Postgres; it migrates on start. The port comes from Railway's `PORT`, and `/health` is the health check.
+Database credentials are Railway references (`${{Postgres.PGPASSWORD}}`), never copied. Each API migrates on start; `PORT` is 8080 and `/health` is the health check.
 
 **Vercel: the app and the website, one project each.**
 
@@ -230,8 +242,6 @@ Each API needs its own Postgres; it migrates on start. The port comes from Railw
 | --- | --- | --- |
 | app | `apps/web` | `VITE_API_URL_MAINNET`, `VITE_API_URL_TESTNET`, `VITE_PRIVY_APP_ID`, `VITE_AURORA_API_KEY`, `VITE_WALLETCONNECT_PROJECT_ID`, `VITE_DEMO_PLAN_ID`, `VITE_DEMO_PLAN_ID_MAINNET`, `VITE_SITE_URL` |
 | website | `apps/landing` | `NEXT_PUBLIC_APP_URL` |
-
-**Envio HyperIndex:** host `apps/envio-indexer` on Envio's hosted service (it deploys from the repository), or self-host it beside its own Postgres (`envio start`), and give each API `ENVIO_DATABASE_URL` to read it.
 
 Then add the app's domain to Privy's allowed domains and to each API's `API_ALLOWED_ORIGINS`.
 

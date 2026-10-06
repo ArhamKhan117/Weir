@@ -1,0 +1,17 @@
+# What `railway up` leaves out of the API and keeper image's upload: only the packages its
+# Dockerfile builds, plus every workspace manifest so the lockfile matches.
+/lib
+/brand
+/docs
+/out
+/cache
+/broadcast
+apps/landing/*
+!apps/landing/package.json
+apps/web/*
+!apps/web/package.json
+apps/cre-keeper/*
+!apps/cre-keeper/package.json
+packages/agent-wallet-plugin/*
+!packages/agent-wallet-plugin/package.json
+apps/envio-indexer
