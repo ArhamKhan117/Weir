@@ -99,10 +99,10 @@ export const FILMS: Film[] = [
     slug: "weir-mera-keys",
     title: "Weir for Mera: one passkey, many keys",
     summary:
-      "An owner key for money and a session key that proves who you are to Weir's API: supporter names and push reminders, signed without a prompt.",
+      "An owner key for money, a session key that signs supporter names and push reminders without a prompt, and a second PRF namespace that seals private notes the server can never read.",
     kind: "Bounty demo",
-    length: "1:25",
-    size: "13 MB",
+    length: "1:41",
+    size: "15 MB",
     file: "/videos/weir-mera-keys.mp4",
     poster: "/videos/weir-mera-keys.jpg",
   },
