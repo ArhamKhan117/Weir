@@ -11,10 +11,11 @@
 import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { linkedEvmWallets, type LinkedAccountLike } from "@weir/shared";
-import { getAddress, isAddressEqual, serializeTypedData, type Address, type Hex, type TypedDataDefinition } from "viem";
+import { getAddress, isAddressEqual, type Address, type Hex, type TypedDataDefinition } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { DEV_MERCHANT_AUTH, NETWORK, PRIVY_APP_ID, WALLETCONNECT_PROJECT_ID } from "../lib/config";
+import { walletTypedData } from "../lib/walletTypedData";
 
 export interface MerchantAuth {
   mode: "privy" | "dev" | "unconfigured";
@@ -146,7 +147,7 @@ function PrivyAuth({ children }: { children: ReactNode }) {
         // A wallet app checks the domain's chain against its own; the embedded wallet follows any.
         if (wallet.walletClientType !== "privy") await wallet.switchChain(NETWORK.chain.id);
         const provider = await wallet.getEthereumProvider();
-        return (await provider.request({ method: "eth_signTypedData_v4", params: [wallet.address, serializeTypedData(typedData)] })) as Hex;
+        return (await provider.request({ method: "eth_signTypedData_v4", params: [wallet.address, walletTypedData(typedData)] })) as Hex;
       },
     }),
     [privy, wallets, connected],
