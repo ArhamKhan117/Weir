@@ -40,10 +40,16 @@ Either side can stop it in one tap.
 
 ## Watch it
 
-| Technical demo, live on Monad Mainnet | Pitch | Weir in 30 seconds |
-| --- | --- | --- |
-| [![Weir technical demo](https://img.youtube.com/vi/Tde4Ke2Cj1s/maxresdefault.jpg)](https://youtu.be/Tde4Ke2Cj1s) | [![Weir pitch](https://img.youtube.com/vi/Z6H05yJ8i5A/maxresdefault.jpg)](https://youtu.be/Z6H05yJ8i5A) | [![Weir in 30 seconds](assets/readme/launch-film.jpg)](https://weirpay.vercel.app/videos/weir-launch) |
-| Every flow running for real, with each transaction opened on Monadscan | What Weir is, the problem it solves, who it is for, and who is building it | The launch film: watch it or download it on [weirpay.vercel.app/videos](https://weirpay.vercel.app/videos) |
+**Weir in 30 seconds**
+
+https://github.com/user-attachments/assets/d0164689-a5c5-48c8-8d66-76057c4a2a51
+
+Full quality, to watch or download: [weirpay.vercel.app/videos](https://weirpay.vercel.app/videos)
+
+| Technical demo, live on Monad Mainnet | Pitch |
+| --- | --- |
+| [![Weir technical demo](https://img.youtube.com/vi/Tde4Ke2Cj1s/maxresdefault.jpg)](https://youtu.be/Tde4Ke2Cj1s) | [![Weir pitch](https://img.youtube.com/vi/Z6H05yJ8i5A/maxresdefault.jpg)](https://youtu.be/Z6H05yJ8i5A) |
+| Every flow running for real, with each transaction opened on Monadscan | What Weir is, the problem it solves, who it is for, and who is building it |
 
 ## Contents
 
