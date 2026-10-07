@@ -59,6 +59,7 @@ const FOOTER_LINKS: { heading: string; items: { label: string; href: string; ext
     heading: "Weir",
     items: [
       { label: "Open the app", href: APP_URL, external: true },
+      { label: "Videos", href: "/videos" },
       { label: "FAQ", href: "#faq" },
       { label: "Monad", href: "https://www.monad.xyz", external: true },
       { label: "Follow on X", href: X_URL, external: true },
