@@ -15,3 +15,4 @@ apps/cre-keeper/*
 packages/agent-wallet-plugin/*
 !packages/agent-wallet-plugin/package.json
 apps/envio-indexer
+/.state
