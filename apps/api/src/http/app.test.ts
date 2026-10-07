@@ -148,6 +148,8 @@ describe.skipIf(db === undefined)("the HTTP API", () => {
       });
       expect(preflight.status).toBe(204);
       expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
+      // Turning reminders off is a cross-origin DELETE.
+      expect(preflight.headers.get("access-control-allow-methods")).toContain("DELETE");
     });
 
     it("reports health", async () => {
