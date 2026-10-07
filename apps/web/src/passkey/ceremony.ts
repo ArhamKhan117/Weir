@@ -57,13 +57,18 @@ export async function createPasskey(label: string): Promise<Ceremony<PrfResult>>
   }
 }
 
-/** With a credential, the prompt is pinned to it; without one, the browser offers every passkey for this site. */
-export async function assertPasskey(credential?: PasskeyCredentialMetadata): Promise<Ceremony<PrfResult>> {
-  if (devKeysEnabled()) return { ok: true, value: devAssert() };
+/**
+ * With a credential, the prompt is pinned to it; without one, the browser offers every passkey for
+ * this site. Without `prfSalt` the PRF is evaluated at Mera's default salt, the one accounts come
+ * from; another salt is another namespace, with an output unrelated to the accounts.
+ */
+export async function assertPasskey(credential?: PasskeyCredentialMetadata, prfSalt?: Uint8Array): Promise<Ceremony<PrfResult>> {
+  if (devKeysEnabled()) return { ok: true, value: await devAssert(prfSalt) };
   try {
     const asserted = await getPasskeyPrfOutput({
       rpId: relyingPartyId(),
       ...(credential === undefined ? {} : { credential }),
+      ...(prfSalt === undefined ? {} : { prfSalt }),
     });
     return {
       ok: true,

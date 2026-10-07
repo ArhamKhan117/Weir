@@ -1723,6 +1723,45 @@
   min-width: 0;
 }
 
+.note-editor {
+  display: grid;
+  gap: var(--s2);
+}
+
+.note-hint,
+.private-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.note-hint svg,
+.private-note svg {
+  flex: none;
+  /* On the first line's centre, however many lines the text wraps to. */
+  margin-top: calc((1.45em - 14px) / 2);
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .note-editor .name-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .note-editor .name-row .input {
+    flex-basis: 100%;
+  }
+}
+
+.private-note span {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- reminders ---------- */
 
 .reminders {

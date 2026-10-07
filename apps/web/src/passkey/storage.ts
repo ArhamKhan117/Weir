@@ -7,6 +7,10 @@
  *   but no code can read the wrapping key out. The session key is re-derivable from the passkey
  *   at any time, so losing this store costs one passkey prompt, never an account.
  *
+ * - **The notes keys** (IndexedDB): the key that seals the payer's private notes, also a
+ *   non-extractable `CryptoKey`, and the locker that names them to the API. They come from a PRF
+ *   namespace of their own (`notes/keys.ts`), unrelated to the account keys.
+ *
  * The owner key is never stored anywhere.
  */
 
@@ -137,6 +141,47 @@ export async function loadSessionKey(owner: Address): Promise<Uint8Array | undef
 export async function clearSessionKey(owner: Address): Promise<void> {
   try {
     await run("readwrite", (store) => store.delete(`session:${owner}`));
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+/*//////////////////////////////////////////////////////////////
+                          NOTES KEYS
+//////////////////////////////////////////////////////////////*/
+
+/**
+ * The keys for a payer's private notes on one network: the AES-GCM key, non-extractable like the
+ * wrapping key, and the locker that names the sealed copy to the API. Both come from the passkey's
+ * notes namespace, so losing them costs one passkey prompt.
+ */
+export interface NotesKeys {
+  key: CryptoKey;
+  locker: string;
+}
+
+const notesId = (owner: Address, chainId: number) => `notes:${owner}:${chainId}`;
+
+export async function storeNotesKeys(owner: Address, chainId: number, keys: NotesKeys): Promise<void> {
+  try {
+    await run("readwrite", (store) => store.put(keys, notesId(owner, chainId)));
+  } catch {
+    // Not kept: this device asks the passkey again next time.
+  }
+}
+
+export async function loadNotesKeys(owner: Address, chainId: number): Promise<NotesKeys | undefined> {
+  try {
+    return await run<NotesKeys | undefined>("readonly", (store) => store.get(notesId(owner, chainId)));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Forgets the notes keys for `owner` on every network. */
+export async function clearNotesKeys(owner: Address): Promise<void> {
+  try {
+    await run("readwrite", (store) => store.delete(IDBKeyRange.bound(`notes:${owner}:`, `notes:${owner}:￿`)));
   } catch {
     // Nothing to clear.
   }

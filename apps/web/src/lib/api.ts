@@ -25,8 +25,10 @@ import {
   type PushKeyResponse,
   type PushSubscribeRequest,
   type PushUnsubscribeRequest,
+  type SaveNotesRequest,
   type SavingsRequest,
   type SavingsResponse,
+  type SealedNotes,
   type StatsResponse,
   type SupportCircle,
   type SupporterNameRequest,
@@ -124,6 +126,9 @@ export const api = {
     request<{ subscribed: boolean }>(API_ROUTES.pushSubscriptions, { method: "POST", body: json(body) }),
   unsubscribePush: (body: PushUnsubscribeRequest) =>
     request<undefined>(API_ROUTES.pushSubscriptions, { method: "DELETE", body: json(body) }),
+  notes: (locker: string) => request<SealedNotes>(API_ROUTES.notes, { auth: `Locker ${locker}` }),
+  saveNotes: (locker: string, body: SaveNotesRequest) =>
+    request<SealedNotes>(API_ROUTES.notes, { method: "PUT", body: json(body), auth: `Locker ${locker}` }),
   openSupport: (body: CreateSupportRequest) => request<SupportCircle>(API_ROUTES.support, { method: "POST", body: json(body) }),
   support: (id: string) => request<SupportResponse>(API_ROUTES.supportCircle(id)),
   supportFor: (recipient: Address) => request<SupportListResponse>(API_ROUTES.supportFor(recipient)),

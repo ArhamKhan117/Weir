@@ -22,6 +22,7 @@ import {
   type PayoutResponse,
   type Plan,
   type PushKeyResponse,
+  type SealedNotes,
   type SavingsResponse,
   type SupportCircle,
   type SupportListResponse,
@@ -37,6 +38,7 @@ import type { EnvioAnalytics } from "../analytics/envio.js";
 import type { Store } from "../db/store.js";
 import { newPlanId, newSupportId, PLAN_ID_PATTERN, SUPPORT_ID_PATTERN } from "../domain/ids.js";
 import { validatePlan } from "../domain/plans.js";
+import { lockerFrom, validateNotes } from "../domain/notes.js";
 import { readPushEndpoint, validatePushSubscription } from "../domain/push.js";
 import { validateSupport, validateSupporterName } from "../domain/support.js";
 import { merchantStats, THIRTY_DAYS } from "../domain/stats.js";
@@ -498,6 +500,27 @@ export function createApp(deps: AppDeps): Hono {
     const body = readObject(await readJson(c), "body", ["endpoint"]);
     await store.deletePushSubscription(field(body, "endpoint", readPushEndpoint));
     return c.body(null, 204);
+  });
+
+  /*//////////////////////////////////////////////////////////////
+                            PRIVATE NOTES
+  //////////////////////////////////////////////////////////////*/
+
+  app.get(API_ROUTES.notes, async (c) => {
+    limit(limits.relayPerIp, clientIp(c), "requests from this client");
+    const notes: SealedNotes | undefined = await store.notes(lockerFrom(c.req.header("authorization")));
+    if (notes === undefined) throw notFound("No notes are kept for this locker");
+    return c.json(notes);
+  });
+
+  app.put(API_ROUTES.notes, async (c) => {
+    limit(limits.relayPerIp, clientIp(c), "requests from this client");
+    const locker = lockerFrom(c.req.header("authorization"));
+    const sealed = validateNotes(await readJson(c));
+    const updatedAt = nowSeconds();
+    await store.saveNotes(locker, sealed, updatedAt);
+    const response: SealedNotes = { ...sealed, updatedAt };
+    return c.json(response);
   });
 
   app.post(API_ROUTES.savings, async (c) => {

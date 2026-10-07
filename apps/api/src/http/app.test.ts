@@ -470,6 +470,51 @@ describe.skipIf(db === undefined)("the HTTP API", () => {
     });
   });
 
+  describe("private notes", () => {
+    const locker = (byte: string) => ({ authorization: `Locker ${byte.repeat(64)}` });
+    const sealed = { nonce: "A".repeat(16), ciphertext: "c".repeat(40) };
+    const put = (body: unknown, headers: Record<string, string>) => ({ ...json(body, headers), method: "PUT" });
+
+    it("keeps one sealed blob per locker, and only for a request that names the locker", async () => {
+      const api = app();
+      expect((await api.request("/v1/notes", { headers: locker("a") })).status).toBe(404);
+      expect((await api.request("/v1/notes")).status).toBe(401);
+      expect((await api.request("/v1/notes", put(sealed, {}))).status).toBe(401);
+      expect((await api.request("/v1/notes", put(sealed, { authorization: "Locker abc" }))).status).toBe(401);
+
+      const saved = await api.request("/v1/notes", put(sealed, locker("a")));
+      expect(saved.status).toBe(200);
+      expect(await saved.json()).toEqual({ ...sealed, updatedAt: NOW });
+      expect(await (await api.request("/v1/notes", { headers: locker("a") })).json()).toEqual({ ...sealed, updatedAt: NOW });
+      // Another locker sees nothing of it.
+      expect((await api.request("/v1/notes", { headers: locker("b") })).status).toBe(404);
+
+      clock += 5_000;
+      const next = { nonce: "B".repeat(16), ciphertext: "d".repeat(40) };
+      expect((await api.request("/v1/notes", put(next, locker("a")))).status).toBe(200);
+      expect(await (await api.request("/v1/notes", { headers: locker("a") })).json()).toEqual({ ...next, updatedAt: NOW + 5 });
+
+      // The table holds a hash of the locker, never the locker.
+      const rows = await sql<{ locker: string }[]>`SELECT locker FROM private_notes`;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.locker).not.toContain("a".repeat(64));
+      expect(rows[0]!.locker).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("refuses a blob that is not a sealed note", async () => {
+      const api = app();
+      for (const body of [
+        { nonce: "short", ciphertext: sealed.ciphertext },
+        { nonce: sealed.nonce, ciphertext: "too short" },
+        { nonce: sealed.nonce, ciphertext: "x".repeat(48_001) },
+        { nonce: sealed.nonce, ciphertext: `${"c".repeat(39)}+` },
+        { ...sealed, owner: payer },
+      ]) {
+        expect((await api.request("/v1/notes", put(body, locker("a")))).status).toBe(400);
+      }
+    });
+  });
+
   describe("plans and checkout", () => {
     it("creates, lists, reads, deactivates, and serves the checkout", async () => {
       const api = app();

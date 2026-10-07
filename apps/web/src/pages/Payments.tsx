@@ -4,13 +4,16 @@
  * Stopping, pausing and resuming are signed by the session key kept on this device, so they take
  * one tap and no passkey prompt. That is the "click to cancel" promise, enforced by the contract:
  * the business cannot refuse or delay it.
+ *
+ * Private notes on each payment are sealed with a key from the passkey's notes namespace
+ * (`notes/keys.ts`); Weir's API keeps only the sealed copy.
  */
 
 import { rateOver, type ChargeView, type MandateAction, type MandateView, type PayerResponse } from "@weir/shared";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Link } from "react-router";
 
-import { Alert, Button, PasskeyIcon, Skeleton, StandingBadge } from "../components/ui";
+import { Alert, Button, LockIcon, PasskeyIcon, Skeleton, StandingBadge } from "../components/ui";
 import { api } from "../lib/api";
 import { balanceOf } from "../lib/chain";
 import { DEPLOYMENT, IS_TESTNET, NETWORK, TOP_UP_AVAILABLE } from "../lib/config";
@@ -18,6 +21,8 @@ import { dateAndTime, dateLong, fromNow, money, moneyExact, periodPhrase, shortA
 import { signAndAct } from "../lib/mandate";
 import { withTransactionToast } from "../lib/toast";
 import { nameSupporter } from "../lib/support";
+import { NOTE_MAX } from "../notes/keys";
+import { usePrivateNotes, type PrivateNotes } from "../notes/usePrivateNotes";
 import { useAccount } from "../passkey/AccountProvider";
 import { Reminders } from "../reminders/Reminders";
 import { SavingsSection } from "../savings/SavingsSection";
@@ -87,6 +92,7 @@ function overrideFor(action: MandateAction): Override {
 
 function PaymentsFor({ owner }: { owner: `0x${string}` }) {
   const account = useAccount();
+  const notes = usePrivateNotes(owner);
   const [data, setData] = useState<PayerResponse | undefined>();
   const [overrides, setOverrides] = useState<ReadonlyMap<string, Override>>(new Map());
   const [balance, setBalance] = useState<bigint | undefined>();
@@ -208,7 +214,7 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
         ) : (
           <div className="mandate-list">
             {live.map((mandate) => (
-              <MandateCard key={mandate.id} mandate={mandate} onApplied={applied} />
+              <MandateCard key={mandate.id} mandate={mandate} notes={notes} onApplied={applied} />
             ))}
           </div>
         )}
@@ -221,7 +227,7 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
           <h2 className="section-title">Ended</h2>
           <div className="mandate-list">
             {ended.map((mandate) => (
-              <MandateCard key={mandate.id} mandate={mandate} onApplied={applied} />
+              <MandateCard key={mandate.id} mandate={mandate} notes={notes} onApplied={applied} />
             ))}
           </div>
         </section>
@@ -262,9 +268,11 @@ function priceOf(mandate: MandateView): string {
 
 function MandateCard({
   mandate,
+  notes,
   onApplied,
 }: {
   mandate: MandateView;
+  notes: PrivateNotes;
   onApplied: (id: string, action: MandateAction) => void;
 }) {
   const account = useAccount();
@@ -272,8 +280,12 @@ function MandateCard({
   const [confirming, setConfirming] = useState(false);
   const [naming, setNaming] = useState<string | undefined>();
   const [named, setNamed] = useState<string | undefined>();
+  const [noting, setNoting] = useState<string | undefined>();
+  const [unlocking, setUnlocking] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const { name, merchant, initial } = titleOf(mandate);
+  const note = notes.state.status === "open" ? notes.state.notes[mandate.id] : undefined;
   const support = mandate.support;
   const streaming = mandate.period === 0;
   const running = mandate.standing === "Active" || mandate.standing === "Past due";
@@ -310,6 +322,37 @@ function MandateCard({
       setNamed(text);
       setNaming(undefined);
     } else if (!result.cancelled) setError(result.message);
+  }
+
+  /** Opens the note editor, unlocking the notes first with one passkey prompt if this device has no key. */
+  async function editNote() {
+    setError(undefined);
+    if (notes.state.status === "open") {
+      setNoting(note ?? "");
+      return;
+    }
+    setUnlocking(true);
+    try {
+      const result = await notes.unlock();
+      if (result.ok) setNoting(result.value[mandate.id] ?? "");
+      else if (!result.cancelled) setError(result.message);
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
+  async function saveNote(event: FormEvent) {
+    event.preventDefault();
+    if (noting === undefined) return;
+    setError(undefined);
+    setSavingNote(true);
+    try {
+      const result = await notes.save(mandate.id, noting);
+      if (result.ok) setNoting(undefined);
+      else if (!result.cancelled) setError(result.message);
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   const used = BigInt(mandate.totalCharged);
@@ -363,6 +406,13 @@ function MandateCard({
         <p className="mandate-note">Paid from savings, so the money earns until each charge. Your balance covers any charge savings cannot.</p>
       ) : null}
 
+      {note !== undefined && noting === undefined ? (
+        <p className="private-note">
+          <LockIcon size={14} />
+          <span>{note}</span>
+        </p>
+      ) : null}
+
       {stoppable ? (
         confirming ? (
           <div className="confirm-row">
@@ -397,6 +447,9 @@ function MandateCard({
                 Your name for {support.name}
               </Button>
             ) : null}
+            <Button variant="ghost" size="sm" onClick={() => void editNote()} loading={unlocking} disabled={noting !== undefined || notes.busy}>
+              {note === undefined ? "Private note" : "Edit note"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setConfirming(true)} disabled={busy !== undefined}>
               Stop
             </Button>
@@ -426,6 +479,32 @@ function MandateCard({
         <p className="mandate-note">
           {support?.name} sees you as {named}.
         </p>
+      ) : null}
+
+      {noting !== undefined ? (
+        <form className="note-editor" onSubmit={(event) => void saveNote(event)}>
+          <div className="name-row">
+            <input
+              className="input"
+              value={noting}
+              onChange={(event) => setNoting(event.target.value)}
+              placeholder="Only you can read this"
+              maxLength={NOTE_MAX}
+              aria-label={`Private note for ${name}`}
+              autoFocus
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setNoting(undefined)} disabled={savingNote}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" loading={savingNote}>
+              Save
+            </Button>
+          </div>
+          <p className="note-hint">
+            <LockIcon size={13} />
+            Sealed on this device with a key from your passkey. Weir keeps only the sealed copy.
+          </p>
+        </form>
       ) : null}
 
       {error !== undefined ? <Alert tone="negative">{error}</Alert> : null}

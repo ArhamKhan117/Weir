@@ -16,6 +16,7 @@ import { assertPasskey, createPasskey, type Ceremony } from "./ceremony";
 import type { SigningKey } from "./derivation";
 import { devKeysEnabled } from "./devkey";
 import {
+  clearNotesKeys,
   clearRecord,
   clearSessionKey,
   loadSessionKey,
@@ -147,7 +148,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const forget = useCallback(async () => {
     endOwner();
     const record = readRecord();
-    if (record !== undefined) await clearSessionKey(record.owner);
+    if (record !== undefined) await Promise.all([clearSessionKey(record.owner), clearNotesKeys(record.owner)]);
     clearRecord();
     setAccount(undefined);
   }, [endOwner]);

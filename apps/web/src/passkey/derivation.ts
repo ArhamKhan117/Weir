@@ -11,6 +11,9 @@
  * exists only while a passkey prompt has just been answered. Index 1 is the **session key**. It
  * lives on this device, encrypted, and can pause, resume and cancel a mandate, which the hub
  * enforces: it can never create a mandate, raise a limit or change who gets paid.
+ *
+ * Private notes use neither: they come from the same passkey at a different PRF salt, a namespace
+ * of their own (`notes/keys.ts`).
  */
 
 import { createSecp256k1SigningSession, getEvmAddress, type Secp256k1SigningSession } from "@category-labs/mera";

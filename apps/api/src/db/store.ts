@@ -15,7 +15,16 @@
  *   only when the mandate pays that circle's recipient.
  */
 
-import { refFromString, type ChargeView, type MandateView, type Plan, type SupportCircle, type Supporter } from "@weir/shared";
+import {
+  refFromString,
+  type ChargeView,
+  type MandateView,
+  type Plan,
+  type SaveNotesRequest,
+  type SealedNotes,
+  type SupportCircle,
+  type Supporter,
+} from "@weir/shared";
 import type { Address, Hex } from "viem";
 
 import type { ValidPlan } from "../domain/plans.js";
@@ -451,6 +460,20 @@ export class Store {
   /*//////////////////////////////////////////////////////////////
                            FAUCET, CURSOR
   //////////////////////////////////////////////////////////////*/
+
+  async notes(locker: string): Promise<SealedNotes | undefined> {
+    const rows = await this.sql<{ nonce: string; ciphertext: string; updated_at: string }[]>`
+      SELECT nonce, ciphertext, updated_at FROM private_notes WHERE chain_id = ${this.scope.chainId} AND locker = ${locker}`;
+    const row = rows[0];
+    return row === undefined ? undefined : { nonce: row.nonce, ciphertext: row.ciphertext, updatedAt: Number(row.updated_at) };
+  }
+
+  async saveNotes(locker: string, sealed: SaveNotesRequest, nowSeconds: number): Promise<void> {
+    await this.sql`
+      INSERT INTO private_notes (chain_id, locker, nonce, ciphertext, updated_at)
+      VALUES (${this.scope.chainId}, ${locker}, ${sealed.nonce}, ${sealed.ciphertext}, ${nowSeconds})
+      ON CONFLICT (chain_id, locker) DO UPDATE SET nonce = EXCLUDED.nonce, ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at`;
+  }
 
   async lastFaucetGrant(address: Address): Promise<number | undefined> {
     const [row] = await this.sql<{ granted_at: string }[]>`

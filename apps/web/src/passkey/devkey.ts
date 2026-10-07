@@ -42,6 +42,10 @@ export function devCreate(): PrfResult {
   return { credential: { credentialId: "development-key" }, prfOutput: secret() };
 }
 
-export function devAssert(): PrfResult {
-  return devCreate();
+/** With a salt other than Mera's default, a different 32 bytes, as a real PRF would give. */
+export async function devAssert(prfSalt?: Uint8Array): Promise<PrfResult> {
+  const created = devCreate();
+  if (prfSalt === undefined) return created;
+  const joined = new Uint8Array([...created.prfOutput, ...prfSalt]);
+  return { ...created, prfOutput: new Uint8Array(await crypto.subtle.digest("SHA-256", joined)) };
 }

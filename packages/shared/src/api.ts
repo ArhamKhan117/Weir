@@ -300,6 +300,27 @@ export interface PushUnsubscribeRequest {
   endpoint: string;
 }
 
+/*//////////////////////////////////////////////////////////////
+                            PRIVATE NOTES
+//////////////////////////////////////////////////////////////*/
+
+/**
+ * A payer's private notes, as the API holds them: one AES-GCM sealed blob per locker, both
+ * base64url. The key and the locker come from a passkey PRF namespace of their own, so the server
+ * can neither read the notes nor tell whose they are. `GET` and `PUT /v1/notes` carry the locker as
+ * `Authorization: Locker <64 hex>`.
+ */
+export interface SealedNotes {
+  /** 12 bytes. */
+  nonce: string;
+  ciphertext: string;
+  /** Unix seconds; set by the server. */
+  updatedAt: number;
+}
+
+/** `PUT /v1/notes`: replaces the locker's blob. */
+export type SaveNotesRequest = Omit<SealedNotes, "updatedAt">;
+
 /** `GET /v1/savings`: the savings vault offered for each asset that has one. */
 export interface SavingsResponse {
   /** The router that moves money in and out on the payer's signature; absent where there is none. */
@@ -523,6 +544,7 @@ export const API_ROUTES = {
   savingsVaults: "/v1/savings",
   pushKey: "/v1/push/key",
   pushSubscriptions: "/v1/push/subscriptions",
+  notes: "/v1/notes",
   support: "/v1/support",
   supportCircle: (id: string) => `/v1/support/${encodeURIComponent(id)}`,
   supportFor: (recipient: string) => `/v1/recipients/${recipient}/support`,

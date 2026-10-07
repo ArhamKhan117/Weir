@@ -250,4 +250,21 @@ CREATE TABLE IF NOT EXISTS push_sent (
 ALTER TABLE support_circles ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT '';
 `,
   },
+  {
+    version: 5,
+    name: "private notes",
+    sql: `
+-- A payer's private notes: one sealed blob per locker. The locker is a secret derived from the
+-- payer's passkey, kept here only as its SHA-256, so the row names nobody and a copy of this table
+-- cannot be used to overwrite one.
+CREATE TABLE IF NOT EXISTS private_notes (
+  chain_id integer NOT NULL,
+  locker text NOT NULL,
+  nonce text NOT NULL,
+  ciphertext text NOT NULL,
+  updated_at bigint NOT NULL,
+  PRIMARY KEY (chain_id, locker)
+);
+`,
+  },
 ];

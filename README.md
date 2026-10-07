@@ -144,7 +144,7 @@ None of them sees a seed phrase, a gas token or a wallet extension; they see a c
 ### What you can do
 
 - **Subscribe at a checkout.** A business shares a link; you approve with your passkey in two signatures and no transaction.
-- **Manage your payments.** See everything running, pause or stop any of it, move money into savings, add money from other chains, get a reminder the day before a charge.
+- **Manage your payments.** See everything running, pause or stop any of it, move money into savings, add money from other chains, get a reminder the day before a charge, and keep a private note on each payment that only your passkey can read.
 - **Support family across borders.** One person shares a link with their country on it; each relative gives every month or sends once, in seconds, and sees what it is worth there ("$50 ≈ Rs 13,875").
 - **Run a business.** Create plans, prove the wallet you get paid to, watch revenue arrive, and send your earnings on from your Privy wallet with no gas.
 - **Install it.** Weir adds to a phone's home screen and opens like an app.
@@ -168,9 +168,10 @@ A mandate can draw from the payer's shares in an ERC-4626 vault.
 Each charge withdraws exactly what is due, straight to the merchant, and checks the merchant received exactly that.
 If the vault cannot pay (short of liquidity, say), the charge comes from the payer's balance instead, under the same limits.
 
-**One passkey, two keys.**
+**One passkey, many keys.**
 Through Mera, one passkey derives an owner key that signs a mandate's terms, and a session key kept on the device that can only pause, resume and cancel.
 Neither ever sends a transaction; the relayer does.
+The same passkey, asked at a second PRF salt of Weir's own, gives a key that does no account work at all: it seals the payer's private notes, which Weir's API stores as ciphertext it cannot read or tie to anyone.
 
 **Anyone can charge.**
 `charge(id)` is permissionless: Weir's keeper, a Chainlink CRE workflow, the merchant or the payer.
@@ -201,7 +202,7 @@ Solidity 0.8.25 with Foundry; TypeScript throughout; viem; React 19 with Vite an
 | Cheap, parallel execution | One transaction charges a batch of mandates |
 | USDC and AUSD with EIP-2612 permits | Installs are signatures, never a transaction from the payer |
 | Morpho vaults on Monad | Savings earn until each charge |
-| Mera passkeys | One passkey, an owner key and a session key |
+| Mera passkeys | One passkey: an owner key and a session key, and a second PRF namespace that encrypts private notes |
 | Chainlink CRE | A workflow charges due mandates by signed report through `MandateCharger` |
 | Chainlink Data Feeds | Fiat rates on Monad (EUR, GBP, CAD, CHF, JPY) for showing what a payment is worth where it lands |
 | Agora's AUSD | Family support pays in AUSD by default, and a one-off "send now" settles in the same transaction |
@@ -262,7 +263,7 @@ Add `?devkey=1` to the app's address in development to use a local stand-in for 
 | `src/` | `MandateHub`, `MandateCharger`, `SavingsRouter`, and the Testnet stand-ins |
 | `test/` | Unit, fuzz and invariant suites |
 | `packages/shared` | Networks, assets, typed data, dollar arithmetic, ABIs, the deployment record |
-| `apps/api` | Relayer, plans and merchants, family support, reminders, webhooks, the index |
+| `apps/api` | Relayer, plans and merchants, family support, reminders, private notes, webhooks, the index |
 | `apps/keeper` | Finds due mandates and charges them in batches with tight gas |
 | `apps/cre-keeper` | The Chainlink CRE workflow ([README](apps/cre-keeper/README.md)) |
 | `apps/envio-indexer` | The Envio HyperIndex project ([README](apps/envio-indexer/README.md)) |
