@@ -18,9 +18,9 @@
   &nbsp;·&nbsp;
   <a href="https://weirpay.vercel.app"><b>Website</b></a>
   &nbsp;·&nbsp;
-  <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
+  <a href="https://youtu.be/Tde4Ke2Cj1s"><b>Demo video</b></a>
   &nbsp;·&nbsp;
-  <a href="PITCH_VIDEO_URL"><b>Pitch video</b></a>
+  <a href="https://youtu.be/Z6H05yJ8i5A"><b>Pitch video</b></a>
   &nbsp;·&nbsp;
   <a href="https://x.com/weirstudio"><b>X @weirstudio</b></a>
 </p>
@@ -38,8 +38,16 @@ Either side can stop it in one tap.
 > **Try it free.** Open [the app](https://app-weirpay.vercel.app) and switch to Testnet in the header: the faucet gives you test dollars, and a passkey is all you need.
 > No wallet, no seed phrase, no gas token.
 
+## Watch it
+
+| Technical demo, live on Monad Mainnet | Pitch |
+| --- | --- |
+| [![Weir technical demo](https://img.youtube.com/vi/Tde4Ke2Cj1s/maxresdefault.jpg)](https://youtu.be/Tde4Ke2Cj1s) | [![Weir pitch](https://img.youtube.com/vi/Z6H05yJ8i5A/maxresdefault.jpg)](https://youtu.be/Z6H05yJ8i5A) |
+| Every flow running for real, with each transaction opened on Monadscan | What Weir is, the problem it solves, who it is for, and who is building it |
+
 ## Contents
 
+[Watch it](#watch-it) ·
 [In 30 seconds](#in-30-seconds) ·
 [How a payment works](#how-a-payment-works) ·
 [Live on Monad](#live-on-monad) ·
