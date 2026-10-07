@@ -400,6 +400,11 @@ function Revenue() {
   );
 }
 
+/** "1 month", "3 months". */
+function monthsPhrase(months: number): string {
+  return `${months} ${months === 1 ? "month" : "months"}`;
+}
+
 function checkoutUrl(plan: Plan): string {
   return `${window.location.origin}/c/${plan.id}`;
 }
@@ -468,7 +473,7 @@ function PlanCard({ plan, onChanged }: { plan: Plan; onChanged: () => Promise<vo
         </div>
         <div>
           <dt>Term</dt>
-          <dd>{Math.round(plan.termSeconds / 2_592_000)} months</dd>
+          <dd>{monthsPhrase(Math.round(plan.termSeconds / 2_592_000))}</dd>
         </div>
         {plan.trialDays > 0 ? (
           <div>
@@ -544,7 +549,7 @@ function NewPlan({ onCreated, onCancel }: { onCreated: () => Promise<void>; onCa
       const charges = BigInt(Math.max(1, Math.floor(termSeconds / period)));
       return {
         request: { mode: "periodic" as const, amount: units, period, maxPerCharge: units, maxTotal: units * charges, termSeconds },
-        summary: `${money(units)} every ${periodPhrase(period)}; customers authorize up to ${money(units * charges)} over ${months} months`,
+        summary: `${money(units)} every ${periodPhrase(period)}; customers authorize up to ${money(units * charges)} over ${monthsPhrase(months)}`,
       };
     } catch {
       return undefined;
