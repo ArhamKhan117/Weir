@@ -4,12 +4,13 @@
  * putting the typed data through the same JSON encoding the host uses on the wire.
  */
 
-import type { CheckoutResponse, MandateRecord, MonadChainId, PayerResponse, PermitDomain, Plan, SavingsResponse } from "@weir/shared";
+import type { CheckoutResponse, MandateRecord, MeterDetail, MonadChainId, PayerResponse, PermitDomain, Plan, SavingsResponse } from "@weir/shared";
 import type { Address, Hex, LocalAccount, TypedDataDomain } from "viem";
 
 import type { HealthInfo, WeirApi } from "../core/api.js";
 import type { ChainReader } from "../core/chain.js";
 import type { Deps } from "../core/deps.js";
+import { WeirError } from "../core/errors.js";
 import type { Settings } from "../core/settings.js";
 import type { ExecutorLike, HostContextLike, TypedDataJob } from "../host.js";
 
@@ -94,6 +95,7 @@ export interface FakeApiCalls {
   install: unknown[];
   action: unknown[];
   savings: unknown[];
+  meterCancel: unknown[];
 }
 
 export function fakeApi(options: {
@@ -101,15 +103,16 @@ export function fakeApi(options: {
   health?: HealthInfo;
   payer?: PayerResponse;
   savings?: SavingsResponse;
+  meters?: MeterDetail[];
 }): WeirApi & { calls: FakeApiCalls } {
-  const calls: FakeApiCalls = { install: [], action: [], savings: [] };
+  const calls: FakeApiCalls = { install: [], action: [], savings: [], meterCancel: [] };
   const tx = `0x${"ab".repeat(32)}` as Hex;
   return {
     calls,
     baseUrl: "http://localhost:8790",
     checkout: async () => options.checkout ?? checkoutFor(),
     health: async () => options.health ?? { chainId: 10143, hub: HUB },
-    payer: async () => options.payer ?? { mandates: [], charges: [] },
+    payer: async () => options.payer ?? { mandates: [], charges: [], meters: [] },
     savingsVaults: async () =>
       options.savings ?? {
         router: ROUTER,
@@ -128,6 +131,15 @@ export function fakeApi(options: {
       return { transaction: tx };
     },
     faucet: async () => ({ transaction: tx, amount: "100000000", asset: ASSET }),
+    meter: async (id) => {
+      const found = options.meters?.find((meter) => meter.id === id);
+      if (found === undefined) throw new WeirError("METER_NOT_FOUND", `No meter #${id}`, "");
+      return found;
+    },
+    meterCancel: async (body) => {
+      calls.meterCancel.push(body);
+      return { transaction: tx };
+    },
   };
 }
 

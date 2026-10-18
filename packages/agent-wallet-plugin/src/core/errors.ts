@@ -29,6 +29,7 @@ export type WeirErrorCode =
   | "NO_SAVINGS"
   | "INSUFFICIENT_FUNDS"
   | "MANDATE_NOT_FOUND"
+  | "METER_NOT_FOUND"
   | "NOT_YOURS"
   | "ALREADY_STOPPED"
   | "NOT_A_STREAM"
@@ -37,7 +38,11 @@ export type WeirErrorCode =
   | "WALLET_MISSING"
   | "CAPABILITY_MISSING"
   | "SIGNING_FAILED"
-  | "NOT_TESTNET";
+  | "NOT_TESTNET"
+  | "NO_OFFER"
+  | "NO_METER"
+  | "PRICE_TOO_HIGH"
+  | "PAYMENT_REFUSED";
 
 export class WeirError extends Error {
   constructor(

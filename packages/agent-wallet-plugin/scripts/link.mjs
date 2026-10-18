@@ -78,8 +78,8 @@ if (node === null || Number(node[1]) < 22 || (Number(node[1]) === 22 && Number(n
   fail(`mm runs on Node ${node === null ? "unknown" : `${node[1]}.${node[2]}`}; it needs 22.18 or later. Switch with \`nvm use 22\`.`);
 }
 
-// 4. The plugin and the shared package it loads at run time, built.
-for (const filter of ["@weir/shared", "@weir/agent-wallet-plugin"]) {
+// 4. The plugin and the shared packages it loads at run time, built.
+for (const filter of ["@weir/shared", "@weir/x402", "@weir/agent-wallet-plugin"]) {
   const built = spawnSync("pnpm", ["--filter", filter, "build"], { cwd: root, stdio: "inherit" });
   if (built.status !== 0) fail(`building ${filter} failed`);
 }

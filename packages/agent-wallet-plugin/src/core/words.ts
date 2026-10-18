@@ -112,3 +112,10 @@ export function shortAddress(address: string): string {
 export function apyPhrase(bps: number): string {
   return `${(bps / 100).toFixed(1)}% a year`;
 }
+
+/** The host a meter's `ref` names, when it is readable text. */
+export function meterTitle(view: { ref: string; merchant: string }): string {
+  const bytes = Buffer.from(view.ref.slice(2), "hex").filter((byte) => byte !== 0);
+  const text = new TextDecoder().decode(bytes);
+  return bytes.length > 0 && /^[\x20-\x7e]+$/.test(text) ? text : `the API paying ${shortAddress(view.merchant)}`;
+}

@@ -120,7 +120,11 @@ const STANDING_WIDTH = 9;
 
 export function renderList(report: ListReport): string {
   const where = report.network === undefined ? "" : ` on ${report.network.label}`;
-  if (report.mandates.length === 0) return `No mandates paid by ${report.payer}${where} yet.`;
+  const meters = report.meters.flatMap((meter) => ["", `meter #${meter.id.padEnd(4)} ${meter.title} [${meter.status}], pays ${meter.payTo}`, `      ${meter.words}.`]);
+  if (report.mandates.length === 0) {
+    const none = `No mandates paid by ${report.payer}${where} yet.`;
+    return meters.length === 0 ? none : [none, "", `Pay-per-request meters${where}`, ...meters].join("\n");
+  }
   const lines = [`Mandates paid by ${report.payer}${where}`];
   for (const line of report.mandates) {
     lines.push(
@@ -138,6 +142,7 @@ export function renderList(report: ListReport): string {
     `${report.totals.mandates} mandate${report.totals.mandates === 1 ? "" : "s"}: ${report.totals.running} running, ${report.totals.paused} paused. Paid so far: ${paid === "" ? "nothing" : paid}.`,
   );
   if (report.totals.next !== undefined) lines.push(`Next: ${report.totals.next.words}.`);
+  if (meters.length > 0) lines.push("", `Pay-per-request meters${where}`, ...meters);
   return lines.join("\n");
 }
 

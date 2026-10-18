@@ -13,7 +13,8 @@
     // Typechecking reads the shared package from source, so a clean checkout needs no prior build.
     // The emitting config resolves it through its `exports` map, as Node does at run time.
     "paths": {
-      "@weir/shared": ["../shared/src/index.ts"]
+      "@weir/shared": ["../shared/src/index.ts"],
+      "@weir/x402": ["../x402/src/index.ts"]
     }
   },
   "include": ["src"]

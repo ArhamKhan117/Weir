@@ -16,13 +16,25 @@ Every Weir action is an EIP-712 signature that the Weir API's relayer submits, s
 | `mm weir resume <mandate id>` | Resumes a paused stream | 1 signature | yes |
 | `mm weir savings [--in <dollars> \| --out <dollars>]` | Balance and savings, and moves between them | 1 signature to move | yes |
 | `mm weir faucet` | Test dollars on Monad Testnet | nothing | no |
+| `mm weir approve <url>` | Reads an API's x402 `weir-meter` offer, signs a permit and the meter's terms, and has the relayer open the meter | 2 signatures | yes |
+| `mm weir fetch <url>` | Requests the URL and pays a `weir-meter` 402 with one usage receipt, then prints the answer | 1 signature per paid request | yes |
+| `mm weir unapprove <meter id>` | Stops a pay-per-request meter; requests already paid are still settled | 1 signature | yes |
 
-`subscribe`, `stop`, `pause`, `resume` and `savings` take `--dry-run`, which prints the exact typed data the wallet would sign and the request that would carry it, and stops before signing.
+`subscribe`, `stop`, `pause`, `resume`, `savings`, `approve` and `unapprove` take `--dry-run`, which prints the exact typed data the wallet would sign and the request that would carry it, and stops before signing.
 `subscribe --from-savings` pays from the savings vault, so the money earns until each charge; `--manager <address>` names another key that may pause, resume and stop the mandate but never spend (the wallet itself by default, `none` for no manager).
 Pause and resume apply to per-second streams only; asked of a periodic mandate, the command says so before anything is signed.
 `list` takes `--payer <address>` to list another address, and `subscribe --dry-run` takes `--payer` to preview for one.
 
 A checkout link is anything ending in `/c/<plan id>`; a plan id looks like `pln_5xjqdh77j4gflgvy`.
+
+## Pay per request (x402)
+
+An API that charges with Weir answers an unpaid request with HTTP 402 and an x402 V2 offer in the `weir-meter` scheme: who is paid, in what, and one request's price.
+`mm weir approve <url>` reads that offer and opens a meter with the API's suggested caps, or with `--per-day`, `--total` and `--days`.
+After that, `mm weir fetch <url>` pays each request by signing a usage receipt for the new running total; there is no transaction per request, and Weir settles the totals on chain in batches.
+`fetch` refuses any price above `--max-price` ($0.01 by default), and takes `--method` and `--data` for other requests.
+`list` shows the wallet's meters beside its mandates, with what each has used and what is settled, and `mm weir unapprove <meter id>` stops one.
+The meter never lets the API take more than the caps the wallet signed.
 
 ## Output
 

@@ -1,14 +1,15 @@
 /**
  * A payer's mandates from the API's index: each one's standing, what it costs, when it next
- * charges and how much it has taken against its cap, with totals across them all.
+ * charges and how much it has taken against its cap, with totals across them all; and their
+ * pay-per-request meters, with what each has used.
  */
 
-import { networkFor, type MandateView, type MonadChainId } from "@weir/shared";
+import { networkFor, type MandateView, type MeterView, type MonadChainId } from "@weir/shared";
 import { zeroAddress, type Address } from "viem";
 
 import type { Deps } from "./deps.js";
 import { chainOf } from "./settings.js";
-import { dateLong, fromNow, mandatePricePhrase, money, moneyExact } from "./words.js";
+import { dateLong, fromNow, mandatePricePhrase, meterTitle, money, moneyExact } from "./words.js";
 
 export interface MandateLine {
   id: string;
@@ -30,10 +31,27 @@ export interface MandateLine {
   words: { price: string; next: string; paid: string; ends: string };
 }
 
+/** A pay-per-request approval: what it may spend and what it has. */
+export interface MeterLine {
+  id: string;
+  /** The API's host, from the meter's `ref`. */
+  title: string;
+  payTo: Address;
+  status: "Active" | "Needs funds" | "Stopped" | "Ended";
+  requests: number;
+  /** Base units signed for so far, and settled on chain. */
+  used: string;
+  settled: string;
+  perDay: string;
+  total: string;
+  words: string;
+}
+
 export interface ListReport {
   payer: Address;
   network?: { chainId: MonadChainId; label: string };
   mandates: MandateLine[];
+  meters: MeterLine[];
   totals: {
     mandates: number;
     /** Active or past due: still charging. */
@@ -90,7 +108,30 @@ export function mandateLine(view: MandateView, now: number, timeZone?: string): 
   };
 }
 
-export function summarize(payer: Address, views: MandateView[], now: number, chainId?: MonadChainId, timeZone?: string): ListReport {
+export function meterLine(view: MeterView, now: number): MeterLine {
+  const status = view.status === "Cancelled" ? "Stopped" : view.expiresAt <= now ? "Ended" : view.status === "Delinquent" ? "Needs funds" : "Active";
+  return {
+    id: view.id,
+    title: meterTitle(view),
+    payTo: view.merchant,
+    status,
+    requests: view.calls,
+    used: view.accepted,
+    settled: view.totalCharged,
+    perDay: view.periodCap,
+    total: view.maxTotal,
+    words: `${view.calls} request${view.calls === 1 ? "" : "s"}, ${moneyExact(view.accepted)} of ${moneyExact(view.maxTotal)} used (${moneyExact(view.totalCharged)} settled), at most ${moneyExact(view.periodCap)} a day`,
+  };
+}
+
+export function summarize(
+  payer: Address,
+  views: MandateView[],
+  now: number,
+  chainId?: MonadChainId,
+  timeZone?: string,
+  meters: MeterView[] = [],
+): ListReport {
   const lines = views.map((view) => mandateLine(view, now, timeZone));
   const paid: Record<string, bigint> = {};
   for (const view of views) paid[view.assetSymbol] = (paid[view.assetSymbol] ?? 0n) + BigInt(view.totalCharged);
@@ -103,6 +144,7 @@ export function summarize(payer: Address, views: MandateView[], now: number, cha
     payer,
     ...(chainId === undefined ? {} : { network: { chainId, label: networkFor(chainId).label } }),
     mandates: lines,
+    meters: meters.map((meter) => meterLine(meter, now)),
     totals: {
       mandates: lines.length,
       running: lines.filter((line) => line.standing === "Active" || line.standing === "Past due").length,
@@ -127,5 +169,5 @@ export function summarize(payer: Address, views: MandateView[], now: number, cha
 export async function listMandates(deps: Deps, payer: Address): Promise<ListReport> {
   const [answer, health] = await Promise.all([deps.api.payer(payer), deps.api.health().catch(() => undefined)]);
   const chainId = health === undefined ? undefined : chainOf(health.chainId, deps.settings);
-  return summarize(payer, answer.mandates, deps.now(), chainId, deps.timeZone);
+  return summarize(payer, answer.mandates, deps.now(), chainId, deps.timeZone, answer.meters ?? []);
 }

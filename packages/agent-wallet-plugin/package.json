@@ -28,7 +28,7 @@
     "topicSeparator": " ",
     "topics": {
       "weir": {
-        "description": "Direct debit on Monad: subscribe to paid services and manage them by signing, with no gas"
+        "description": "Direct debit on Monad: subscribe to paid services, pay APIs per request, and manage it all by signing, with no gas"
       }
     }
   },
@@ -84,6 +84,24 @@
         "capabilities": ["wallet-read", "wallet-submit"],
         "dataAccess": ["accounts"],
         "targetChains": [143, 10143]
+      },
+      {
+        "id": "weir:approve",
+        "capabilities": ["wallet-read", "wallet-submit"],
+        "dataAccess": ["accounts"],
+        "targetChains": [143, 10143]
+      },
+      {
+        "id": "weir:fetch",
+        "capabilities": ["wallet-read", "wallet-submit"],
+        "dataAccess": ["accounts"],
+        "targetChains": [143, 10143]
+      },
+      {
+        "id": "weir:unapprove",
+        "capabilities": ["wallet-read", "wallet-submit"],
+        "dataAccess": ["accounts"],
+        "targetChains": [143, 10143]
       }
     ]
   },
@@ -92,6 +110,7 @@
   },
   "dependencies": {
     "@weir/shared": "workspace:*",
+    "@weir/x402": "workspace:*",
     "viem": "2.45.3"
   },
   "devDependencies": {

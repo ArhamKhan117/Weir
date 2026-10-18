@@ -167,7 +167,9 @@ export function walletSigner(ctx: HostContextLike, io: CommandIO, commandId: str
       const run = await open();
       let result: SignatureResultLike;
       try {
-        result = await run({ kind: "typed-data", chainId, typedData, intent: { summary, action: "sign" } }, { signal: io.signal });
+        // A message names its own chain in its domain; a usage receipt is only known once the API answers.
+        const domainChain = Number((typedData as { domain?: { chainId?: unknown } }).domain?.chainId ?? chainId);
+        result = await run({ kind: "typed-data", chainId: domainChain, typedData, intent: { summary, action: "sign" } }, { signal: io.signal });
       } catch (error) {
         if (isHostError(error)) throw error;
         throw new WeirError("SIGNING_FAILED", `The wallet did not sign "${summary}": ${messageOf(error)}`, "Nothing was sent. Run the command again.");

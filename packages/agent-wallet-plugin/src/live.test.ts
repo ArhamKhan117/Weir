@@ -9,6 +9,9 @@
  * a per-second stream and pauses, resumes and stops it, and stops the subscription, reading each
  * result back from the chain and the API's index.
  *
+ * A second case approves the API's paid demo endpoint over x402, pays requests with receipts alone,
+ * and stops the meter.
+ *
  * Opt in with `WEIR_LIVE_API=http://localhost:8790`, since it spends Testnet faucet dollars and the
  * relayer's gas; `WEIR_LIVE_PLAN` picks the periodic plan. It skips otherwise.
  */
@@ -20,6 +23,7 @@ import { prepareAction, relayAction, signAction, type Verb } from "./core/action
 import { createDeps, type Deps } from "./core/deps.js";
 import { requestTestDollars } from "./core/faucet.js";
 import { listMandates } from "./core/list.js";
+import { openMeter, paidFetch, prepareApproval, prepareMeterStop, signApproval, stopMeter } from "./core/meter.js";
 import { prepareMove, readSavings, relayMove, signMove } from "./core/savings.js";
 import { resolveSettings } from "./core/settings.js";
 import { install, prepareInstall, requireFunds, signInstall } from "./core/subscribe.js";
@@ -139,6 +143,72 @@ describe.skipIf(apiUrl === undefined)("the plugin against a live Weir API", () =
         for (const mandateId of open) {
           await nextBlock();
           await act(mandateId, "stop").catch((error: unknown) => receipts.push(`could not stop #${mandateId}: ${String(error)}`));
+        }
+        console.log(receipts.join("\n"));
+      }
+    },
+    300_000,
+  );
+
+  it(
+    "approves a paid API, pays its requests with receipts alone, and stops the meter",
+    async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+      const host = fakeHost(account);
+      const deps: Deps = createDeps(resolveSettings({ api: apiUrl }, process.env));
+      const signer = (commandId: string, chainId: number) => walletSigner(host, fakeIo, commandId, chainId, account.address);
+      const demo = `${apiUrl}/demo/fx?to=EUR`;
+      const receipts: string[] = [`payer ${account.address}`];
+      let meterId: string | undefined;
+
+      try {
+        const granted = await requestTestDollars(deps, account.address);
+        const chain = deps.chain(granted.chainId);
+        await until("the faucet's dollars", async () => ((await chain.balanceOf(granted.asset, account.address)) > 0n ? true : undefined));
+
+        // `mm weir approve`: the demo's suggested caps, two signatures, one relayed transaction.
+        const plan = await prepareApproval(deps, fetch, { url: demo }, account.address);
+        const opened = await openMeter(fetch, plan, await signApproval(plan, signer("weir:approve", plan.offer.chainId)));
+        meterId = opened.meterId;
+        receipts.push(`approve meter #${meterId} ${opened.transactions.create}`);
+        await until("the index to list the meter", async () => (await listMandates(deps, account.address)).meters.find((line) => line.id === opened.meterId));
+
+        // `mm weir fetch`, three times: each a receipt for the next running total, and the API's answer.
+        for (let call = 1n; call <= 3n; call += 1n) {
+          const paid = await paidFetch(fetch, signer("weir:fetch", plan.offer.chainId), demo, { maxPrice: 10_000n });
+          expect(paid).toMatchObject({ status: 200, price: plan.offer.price, total: plan.offer.price * call, meterId: opened.meterId });
+          expect(JSON.parse(paid.body)).toMatchObject({ base: "USD", to: "EUR" });
+        }
+        const listed = (await listMandates(deps, account.address)).meters.find((line) => line.id === opened.meterId);
+        expect(listed).toMatchObject({ requests: 3, used: (plan.offer.price * 3n).toString(), status: "Active" });
+
+        // A request priced above the limit is refused before anything is signed.
+        const jobs = host.jobs.length;
+        await expect(paidFetch(fetch, signer("weir:fetch", plan.offer.chainId), demo, { maxPrice: plan.offer.price - 1n })).rejects.toMatchObject({ code: "PRICE_TOO_HIGH" });
+        expect(host.jobs.length).toBe(jobs);
+
+        // `mm weir unapprove`: one signature; after it, the API's offer can no longer be paid.
+        const stop = await prepareMeterStop(deps, BigInt(opened.meterId), account.address);
+        receipts.push(`unapprove meter #${meterId} ${await stopMeter(deps, stop, signer("weir:unapprove", stop.chainId))}`);
+        meterId = undefined;
+        await until("the index to see the stop", async () => ((await deps.api.meter(opened.meterId)).status === "Cancelled" ? true : undefined));
+        await expect(paidFetch(fetch, signer("weir:fetch", plan.offer.chainId), demo, { maxPrice: 10_000n })).rejects.toMatchObject({ code: "NO_METER" });
+
+        // Two to approve, three receipts, one stop.
+        expect(host.jobs.map((job) => job.typedData && (job.typedData as { primaryType: string }).primaryType)).toEqual([
+          "Permit",
+          "MeterAuthorization",
+          "UsageReceipt",
+          "UsageReceipt",
+          "UsageReceipt",
+          "MeterCancel",
+        ]);
+      } finally {
+        if (meterId !== undefined) {
+          const id = meterId;
+          await prepareMeterStop(deps, BigInt(id), account.address)
+            .then((stop) => stopMeter(deps, stop, signer("weir:unapprove", stop.chainId)))
+            .catch((error: unknown) => receipts.push(`could not stop meter #${id}: ${String(error)}`));
         }
         console.log(receipts.join("\n"));
       }

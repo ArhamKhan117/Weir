@@ -11,10 +11,12 @@ import {
   API_ROUTES,
   type ActionRequest,
   type ApiError,
+  type CancelMeterRequest,
   type CheckoutResponse,
   type FaucetResponse,
   type InstallRequest,
   type InstallResponse,
+  type MeterDetail,
   type PayerResponse,
   type RelayResponse,
   type SavingsRequest,
@@ -40,6 +42,8 @@ export interface WeirApi {
   action(body: ActionRequest): Promise<RelayResponse>;
   savings(body: SavingsRequest): Promise<RelayResponse>;
   faucet(address: Address): Promise<FaucetResponse>;
+  meter(id: string): Promise<MeterDetail>;
+  meterCancel(body: CancelMeterRequest): Promise<RelayResponse>;
 }
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -120,6 +124,13 @@ export function createApi(baseUrl: string, fetchImpl: Fetch = fetch): WeirApi {
         body: { address },
         notFound: () => new WeirError("NOT_TESTNET", `The Weir API at ${baseUrl} has no faucet`, "Test dollars exist on Monad Testnet only."),
       }),
+    meter: (id) =>
+      call({
+        method: "GET",
+        path: API_ROUTES.meter(id),
+        notFound: () => new WeirError("METER_NOT_FOUND", `No meter #${id} at the Weir API at ${baseUrl}`, "See `mm weir list` for this wallet's meters. A meter lives on one network; --api picks which."),
+      }),
+    meterCancel: (body) => call({ method: "POST", path: API_ROUTES.meterCancel, body }),
   };
 }
 
