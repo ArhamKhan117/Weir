@@ -69,13 +69,13 @@ The index runs on Envio's hosted service, on the free development plan, synced o
 On that plan every deployment has its own address and runs for at most 30 days or about 100,000 processed events, so the address below is the current deployment's and changes with each one:
 
 ```
-https://indexer.dev.hyperindex.xyz/6077704/v1/graphql
+https://indexer.dev.hyperindex.xyz/896b0e4/v1/graphql
 ```
 
 Try it:
 
 ```bash
-curl -s https://indexer.dev.hyperindex.xyz/6077704/v1/graphql -H 'content-type: application/json' \
+curl -s https://indexer.dev.hyperindex.xyz/896b0e4/v1/graphql -H 'content-type: application/json' \
   -d '{"query":"{ Network { chainId mandateCount chargeCount volume mrr reportCount } }"}'
 ```
 
