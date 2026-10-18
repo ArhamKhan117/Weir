@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Weir on Envio HyperIndex: a GraphQL API over mandates, charges, CRE reports and merchant revenue on Monad",
+  "description": "Weir on Envio HyperIndex: a GraphQL API over mandates, charges, CRE reports, pay-per-request meters and merchant revenue on Monad",
   "license": "MIT",
   "engines": {
     "node": ">=22.0.0"

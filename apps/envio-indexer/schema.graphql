@@ -1,5 +1,5 @@
 """
-`IMandateHub.Status`, as the contract stores it.
+`IMandateHub.Status` and `IMandateMeter.Status`, as the contracts store them: the same three values.
 """
 enum MandateStatus {
   Active
@@ -58,6 +58,20 @@ enum ChargeTrigger {
 }
 
 """
+What a person reads about a meter, by the same order as a mandate's standing: cancelled, expired,
+completed (the lifetime cap is spent), past due (the last settlement could not be funded), active.
+`Expired` and `Completed` are never written on chain; expiry is applied by the same sweep as a
+mandate's.
+"""
+enum MeterStanding {
+  Active
+  PastDue
+  Completed
+  Expired
+  Cancelled
+}
+
+"""
 One entry on a mandate's timeline.
 """
 enum MandateEventKind {
@@ -81,6 +95,8 @@ type Network {
   chainId: Int!
   hub: String!
   charger: String!
+  "The `MandateMeter`, or empty where the network has none."
+  meter: String!
   mandateCount: Int!
   activeMandates: Int!
   pausedMandates: Int!
@@ -92,7 +108,9 @@ type Network {
   liveMandates: Int!
   "Not cancelled or expired: mandates whose standing can still change."
   openMandates: Int!
+  "Payers with at least one mandate."
   payerCount: Int!
+  "Merchants with at least one mandate."
   merchantCount: Int!
   chargeCount: Int!
   failureCount: Int!
@@ -103,6 +121,24 @@ type Network {
   reportCount: Int!
   "The time every standing here was last evaluated at, unix seconds."
   standingAsOf: BigInt!
+  meterCount: Int!
+  activeMeters: Int!
+  pastDueMeters: Int!
+  completedMeters: Int!
+  expiredMeters: Int!
+  cancelledMeters: Int!
+  "Active or past due: meters still taking usage."
+  liveMeters: Int!
+  "Not cancelled or expired: meters whose standing can still change."
+  openMeters: Int!
+  "Payers with at least one meter."
+  meterPayerCount: Int!
+  "Merchants with at least one meter."
+  meterMerchantCount: Int!
+  meterSettlementCount: Int!
+  meterFailureCount: Int!
+  "Base units settled through meters, all time. Not part of `volume`, which is mandates only."
+  meteredVolume: BigInt!
 }
 
 """
@@ -316,12 +352,15 @@ type MandateEvent {
 }
 
 """
-A signer burned a nonce, voiding every signature that carries it: `NonceInvalidated`.
+A signer burned a nonce, voiding every signature that carries it: `NonceInvalidated`, from the hub
+or the meter, which keep a namespace each.
 """
 type NonceInvalidation {
   "`<chainId>-<transaction>-<logIndex>`."
   id: ID!
   chainId: Int!
+  "The hub or the meter whose nonce it was."
+  contract: String!
   signer: String! @index
   nonce: BigInt!
   timestamp: BigInt!
@@ -352,10 +391,23 @@ type Payer {
   totalPaid: BigInt!
   chargeCount: Int!
   failureCount: Int!
+  meterCount: Int!
+  activeMeters: Int!
+  pastDueMeters: Int!
+  completedMeters: Int!
+  expiredMeters: Int!
+  cancelledMeters: Int!
+  liveMeters: Int!
+  "Base units paid through meters, all assets. Not part of `totalPaid`, which is mandates only."
+  meteredPaid: BigInt!
+  meterSettlements: Int!
+  meterFailures: Int!
+  "When it first signed a mandate or a meter."
   firstSeenAt: BigInt!
   mandates: [Mandate!]! @derivedFrom(field: "payer")
   assets: [PayerAsset!]! @derivedFrom(field: "payer")
   charges: [Charge!]! @derivedFrom(field: "payer")
+  meters: [Meter!]! @derivedFrom(field: "payer")
 }
 
 """
@@ -376,7 +428,8 @@ type PayerAsset {
 }
 
 """
-An address charges are paid to, with its revenue and customers.
+An address charges are paid to, with its revenue and customers. Every figure without "meter" in
+its name is about mandates alone; pay-per-request is counted beside it.
 """
 type Merchant {
   "`<chainId>-<address>`."
@@ -403,6 +456,18 @@ type Merchant {
   customers: Int!
   "Distinct payers with a mandate to it that is active, paused or past due."
   activeCustomers: Int!
+  meterCount: Int!
+  activeMeters: Int!
+  pastDueMeters: Int!
+  completedMeters: Int!
+  expiredMeters: Int!
+  cancelledMeters: Int!
+  liveMeters: Int!
+  "Base units collected through meters, all time, all assets. Not part of `revenue`."
+  meteredRevenue: BigInt!
+  meterSettlements: Int!
+  meterFailures: Int!
+  "When it was first paid to by a mandate or a meter."
   firstSeenAt: BigInt!
   mandates: [Mandate!]! @derivedFrom(field: "merchant")
   assets: [MerchantAsset!]! @derivedFrom(field: "merchant")
@@ -410,6 +475,8 @@ type Merchant {
   charges: [Charge!]! @derivedFrom(field: "merchant")
   failures: [ChargeFailure!]! @derivedFrom(field: "merchant")
   days: [MerchantDailyStat!]! @derivedFrom(field: "merchant")
+  meters: [Meter!]! @derivedFrom(field: "merchant")
+  meterSettlementList: [MeterSettlement!]! @derivedFrom(field: "merchant")
 }
 
 """
@@ -430,6 +497,9 @@ type MerchantAsset {
   revenue: BigInt!
   chargeCount: Int!
   failureCount: Int!
+  "Base units collected through meters in this asset. Not part of `revenue`."
+  meteredRevenue: BigInt!
+  meterSettlements: Int!
 }
 
 """
@@ -474,6 +544,11 @@ type DailyStat {
   activeMandates: Int!
   "MRR at the day's last change."
   mrr: BigInt!
+  newMeters: Int!
+  "Base units settled through meters. Not part of `volume`."
+  meteredVolume: BigInt!
+  meterSettlements: Int!
+  meterFailures: Int!
 }
 
 """
@@ -494,4 +569,121 @@ type MerchantDailyStat {
   expirations: Int!
   activeMandates: Int!
   mrr: BigInt!
+  newMeters: Int!
+  meteredVolume: BigInt!
+  meterSettlements: Int!
+  meterFailures: Int!
+}
+
+"""
+A metered mandate: a payer's standing authorization to pay a merchant by usage, within a cap per
+period and a lifetime cap, until it expires. The payer (or the manager) signs a running total per
+request off chain; anyone settles the latest one, and the merchant is paid the difference.
+"""
+type Meter {
+  "`<chainId>-<meterId>`."
+  id: ID!
+  chainId: Int!
+  "The `MandateMeter`."
+  contract: String!
+  meterId: BigInt!
+  payer: Payer!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  "A key that may sign receipts and cancel, or the zero address for none."
+  manager: String!
+  "The most that may be settled in one period."
+  periodCap: BigInt!
+  "Seconds per period."
+  period: Int!
+  "The most that may ever be settled."
+  maxTotal: BigInt!
+  "Unix seconds, inclusive: receipts issued after it are not honored."
+  expiresAt: BigInt! @index
+  "The merchant's 32-byte reference."
+  ref: String!
+  status: MandateStatus!
+  standing: MeterStanding! @index
+  "Cancelled or expired: it takes no new usage, though receipts issued before then still settle."
+  ended: Boolean! @index
+  "When the standing was last evaluated."
+  standingAsOf: BigInt!
+  totalCharged: BigInt!
+  "What the lifetime cap still allows."
+  remaining: BigInt!
+  "The start of the period the last settlement booked into, as the contract keeps it."
+  periodStart: BigInt!
+  "What that period has settled, as the contract keeps it."
+  periodCharged: BigInt!
+  "The running total of the last receipt settled, which is above `totalCharged` while a cap holds part of it back."
+  receiptTotal: BigInt!
+  settlementCount: Int!
+  failureCount: Int!
+  lastSettledAt: BigInt
+  lastFailureAt: BigInt
+  lastFailureReason: FailureReason
+  "Base units the last failed settlement needed."
+  lastFailureAmount: BigInt
+  createdAt: BigInt!
+  createdBlock: Int!
+  createdTx: String!
+  "When it was cancelled; zero while open, as the contract keeps it."
+  closedAt: BigInt!
+  closedBlock: Int
+  closedTx: String
+  "Who cancelled it: the payer, the manager or the merchant."
+  cancelledBy: String
+  settlements: [MeterSettlement!]! @derivedFrom(field: "meter")
+  failures: [MeterSettleFailure!]! @derivedFrom(field: "meter")
+}
+
+"""
+Usage paid for: `UsageSettled`.
+"""
+type MeterSettlement {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  meter: Meter!
+  payer: Payer!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  amount: BigInt!
+  "The meter's lifetime total after this settlement."
+  totalCharged: BigInt!
+  "The running total of the receipt settled."
+  receiptTotal: BigInt!
+  "The account that sent the transaction, typically the facilitator."
+  sender: String!
+  timestamp: BigInt! @index
+  blockNumber: Int!
+  transactionHash: String! @index
+  logIndex: Int!
+}
+
+"""
+A settlement the payer could not fund: `SettleFailed`. Nothing moved, the meter is past due, and
+the receipt can be settled again.
+"""
+type MeterSettleFailure {
+  "`<chainId>-<transaction>-<logIndex>`."
+  id: ID!
+  chainId: Int!
+  meter: Meter!
+  payer: Payer!
+  merchant: Merchant!
+  asset: String!
+  assetSymbol: String!
+  "`InsufficientBalance` or `InsufficientAllowance`, numbered as the hub's."
+  reason: FailureReason!
+  reasonCode: Int!
+  "Base units the settlement needed."
+  required: BigInt!
+  sender: String!
+  timestamp: BigInt! @index
+  blockNumber: Int!
+  transactionHash: String! @index
+  logIndex: Int!
 }

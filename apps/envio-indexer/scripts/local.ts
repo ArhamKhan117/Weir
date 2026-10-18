@@ -5,6 +5,9 @@
  *   pnpm local start -r         drop what is indexed and sync again from the start block
  *   pnpm local <args...>        any other envio command, in the same environment
  *
+ * With no arguments, `ENVIO_START_ARGS` gives them instead: a hosted copy whose image always runs
+ * `pnpm local` is reset once with `ENVIO_START_ARGS="start -r"`, then resumes when it is unset.
+ *
  * See `env.ts` for what is read from the repository's `.env`. The database is created on first
  * run. It is the indexer's own: the API's tables are never touched.
  */
@@ -33,7 +36,8 @@ try {
   await admin.end();
 }
 
-const args = process.argv.slice(2);
+const given = process.argv.slice(2);
+const args = given.length > 0 ? given : (process.env["ENVIO_START_ARGS"] ?? "").split(/\s+/).filter((arg) => arg !== "");
 const child = spawn(fileURLToPath(new URL("../node_modules/.bin/envio", import.meta.url)), args.length === 0 ? ["start"] : args, {
   cwd: fileURLToPath(new URL("../", import.meta.url)),
   env,

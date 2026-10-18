@@ -7,11 +7,14 @@
  * Mainnet API locally (:8790, :8792) unless `--api` names others.
  *
  * 1. The chain. Every indexed mandate against `getMandate` at the block the indexer has reached,
- *    field for field, and `nextMandateId` against the count. Every event count against HyperSync's
- *    own count of the logs, and the charged volume against the sum of every `Charged` amount.
+ *    field for field, and `nextMandateId` against the count; every meter against `getMeter` and
+ *    `nextMeterId` the same way. Every event count against HyperSync's own count of the logs, and
+ *    the charged and settled volumes against the sums of every `Charged` and `UsageSettled` amount.
  * 2. The API's payer view. For every payer indexed, `GET /v1/payers/:address`: the same mandates,
  *    standings, totals and charges.
- * 3. The API's merchant overview, for each `--merchant` given: mandates, active and past-due
+ * 3. The API's meters, where it serves one: `GET /v1/x402/meters/:id` for every meter indexed, its
+ *    status and what it has settled.
+ * 4. The API's merchant overview, for each `--merchant` given: mandates, active and past-due
  *    counts, MRR and what was collected in the last thirty days, per asset. The overview signs in
  *    with the dev scheme, which creates a merchant account for an address it has not seen, so name
  *    only merchants that already have one.
@@ -56,6 +59,7 @@ const merchants = option("merchant").map((address) => address.toLowerCase());
 
 const hubAbi = JSON.parse(readFileSync(new URL("../abis/MandateHub.json", import.meta.url), "utf8")) as Abi;
 const chargerAbi = JSON.parse(readFileSync(new URL("../abis/MandateCharger.json", import.meta.url), "utf8")) as Abi;
+const meterAbi = JSON.parse(readFileSync(new URL("../abis/MandateMeter.json", import.meta.url), "utf8")) as Abi;
 const STATUSES: readonly Status[] = ["Active", "Delinquent", "Cancelled"];
 const API_STANDING: Record<string, Standing> = { "Past due": "PastDue" };
 
@@ -107,6 +111,19 @@ interface MandateRow {
 
 const sql = postgres({ ...pg, max: 2, onnotice: () => {} });
 
+/**
+ * `read` over every item, ten at a time and a second apart: public Monad RPCs limit a client to a
+ * few requests a second, and a batch counts each call in it.
+ */
+async function paced<T, R>(items: readonly T[], read: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let start = 0; start < items.length; start += 10) {
+    if (start > 0) await sleep(1_000);
+    results.push(...(await Promise.all(items.slice(start, start + 10).map(read))));
+  }
+  return results;
+}
+
 async function progressOf(chainId: number): Promise<number> {
   const [row] = await sql<{ progress_block: number }[]>`SELECT progress_block FROM envio_chains WHERE id = ${chainId}`;
   return row?.progress_block ?? 0;
@@ -115,8 +132,34 @@ async function progressOf(chainId: number): Promise<number> {
 const mandatesOf = (chainId: number) =>
   sql<MandateRow[]>`SELECT * FROM "Mandate" WHERE "chainId" = ${chainId} ORDER BY "mandateId"::numeric`;
 
-/** 1. The chain, at exactly the block the index stands at. */
-async function compareWithChain(chainId: number, block: number): Promise<void> {
+interface MeterRow {
+  meterId: string;
+  payer_id: string;
+  merchant_id: string;
+  asset: string;
+  manager: string;
+  periodCap: string;
+  period: number;
+  maxTotal: string;
+  expiresAt: string;
+  status: Status;
+  standing: string;
+  totalCharged: string;
+  periodStart: string;
+  periodCharged: string;
+  closedAt: string;
+}
+
+const metersOf = (chainId: number) =>
+  sql<MeterRow[]>`SELECT * FROM "Meter" WHERE "chainId" = ${chainId} ORDER BY "meterId"::numeric`;
+
+/**
+ * 1. The chain, at exactly the block the index stands at. The index keeps following the head while
+ * it is read, so the sections are returned rather than printed: a comparison that fails after the
+ * index has moved on is run again.
+ */
+async function compareWithChain(chainId: number, block: number): Promise<[string, Section][]> {
+  const sections: [string, Section][] = [];
   const network = NETWORKS[chainId]!;
   const mandates = await mandatesOf(chainId);
   const [counts] = await sql<
@@ -139,8 +182,8 @@ async function compareWithChain(chainId: number, block: number): Promise<void> {
   const nextId = (await client.readContract({ address: hub, abi: hubAbi, functionName: "nextMandateId", ...at })) as bigint;
   state.same("mandates created (nextMandateId - 1)", mandates.length, nextId - 1n);
   state.same("Network.mandateCount", networkRow?.mandateCount, nextId - 1n);
-  const onChain = (await Promise.all(
-    mandates.map((m) => client.readContract({ address: hub, abi: hubAbi, functionName: "getMandate", args: [BigInt(m.mandateId)], ...at })),
+  const onChain = (await paced(mandates, (m) =>
+    client.readContract({ address: hub, abi: hubAbi, functionName: "getMandate", args: [BigInt(m.mandateId)], ...at }),
   )) as Record<string, bigint | number | string>[];
   const fields = ["vault", "manager", "amount", "period", "nextChargeAt", "maxPerCharge", "maxTotal", "totalCharged", "expiresAt", "pausedAt"] as const;
   for (const [index, m] of mandates.entries()) {
@@ -156,10 +199,44 @@ async function compareWithChain(chainId: number, block: number): Promise<void> {
     compare("status", m.status, STATUSES[Number(chain.status)]);
     state.check(differences.length === 0, `mandate ${m.mandateId}`, differences.length === 0 ? `${m.standing}, ${m.totalCharged} charged` : differences.join("; "));
   }
-  print(`Against the chain: getMandate at block ${block}`, state);
+  sections.push([`Against the chain: getMandate at block ${block}`, state]);
+
+  const meters = await metersOf(chainId);
+  const [meterCounts] = await sql<{ settlements: string; volume: string | null; failures: string; cancels: string }[]>`
+    SELECT (SELECT count(*) FROM "MeterSettlement" WHERE "chainId" = ${chainId}) AS settlements,
+           (SELECT sum(amount) FROM "MeterSettlement" WHERE "chainId" = ${chainId}) AS volume,
+           (SELECT count(*) FROM "MeterSettleFailure" WHERE "chainId" = ${chainId}) AS failures,
+           (SELECT count(*) FROM "Meter" WHERE "chainId" = ${chainId} AND "closedAt" > 0) AS cancels`;
+  const [meterNetwork] = await sql<{ meteredVolume: string; meterCount: number }[]>`
+    SELECT "meteredVolume", "meterCount" FROM "Network" WHERE id = ${`${chainId}`}`;
+  if (network.meter !== "") {
+    const meterState = new Section();
+    const meter = network.meter as Address;
+    const nextMeterId = (await client.readContract({ address: meter, abi: meterAbi, functionName: "nextMeterId", ...at })) as bigint;
+    meterState.same("meters created (nextMeterId - 1)", meters.length, nextMeterId - 1n);
+    meterState.same("Network.meterCount", meterNetwork?.meterCount ?? 0, nextMeterId - 1n);
+    const meterFields = ["manager", "periodCap", "period", "maxTotal", "expiresAt", "totalCharged", "periodStart", "periodCharged", "closedAt"] as const;
+    const onChainMeters = (await paced(meters, (m) =>
+      client.readContract({ address: meter, abi: meterAbi, functionName: "getMeter", args: [BigInt(m.meterId)], ...at }),
+    )) as Record<string, bigint | number | string>[];
+    for (const [index, m] of meters.entries()) {
+      const chain = onChainMeters[index]!;
+      const differences: string[] = [];
+      const compare = (name: string, ours: unknown, theirs: unknown) => {
+        if (String(ours).toLowerCase() !== String(theirs).toLowerCase()) differences.push(`${name} ${String(ours)} vs ${String(theirs)}`);
+      };
+      compare("payer", m.payer_id.slice(`${chainId}-`.length), chain.payer);
+      compare("merchant", m.merchant_id.slice(`${chainId}-`.length), chain.merchant);
+      compare("asset", m.asset, chain.asset);
+      for (const field of meterFields) compare(field, m[field], chain[field]);
+      compare("status", m.status, STATUSES[Number(chain.status)]);
+      meterState.check(differences.length === 0, `meter ${m.meterId}`, differences.length === 0 ? `${m.standing}, ${m.totalCharged} settled` : differences.join("; "));
+    }
+    sections.push([`Against the chain: getMeter at block ${block}`, meterState]);
+  }
 
   const logs = new Section();
-  const hypersync = await countLogs(chainId, network.startBlock, block, [network.hub, network.charger]);
+  const hypersync = await countLogs(chainId, network.startBlock, block, [network.hub, network.charger, ...(network.meter === "" ? [] : [network.meter])]);
   const count = (name: string) => hypersync.counts[name] ?? 0;
   logs.same("MandateCreated", mandates.length, count("MandateCreated"));
   logs.same("Charged", counts?.charges, count("Charged"));
@@ -168,10 +245,20 @@ async function compareWithChain(chainId: number, block: number): Promise<void> {
   logs.same("ChargeFailed", counts?.failures, count("ChargeFailed"));
   logs.same("MandateCancelled", counts?.cancels, count("MandateCancelled"));
   logs.same("MandatePaused", counts?.pauses, count("MandatePaused"));
+  // The hub's and the meter's: one event signature, one table.
   logs.same("NonceInvalidated", counts?.nonces, count("NonceInvalidated"));
   logs.same("ReportCharged", counts?.reports, count("ReportCharged"));
   logs.same("ChargeReverted", counts?.reverts, count("ChargeReverted"));
-  print(`Against HyperSync's own log counts, blocks ${network.startBlock} to ${block}`, logs);
+  if (network.meter !== "") {
+    logs.same("MeterCreated", meters.length, count("MeterCreated"));
+    logs.same("UsageSettled", meterCounts?.settlements, count("UsageSettled"));
+    logs.same("UsageSettled volume", meterCounts?.volume ?? 0, hypersync.settledVolume);
+    logs.same("Network.meteredVolume", meterNetwork?.meteredVolume, hypersync.settledVolume);
+    logs.same("SettleFailed", meterCounts?.failures, count("SettleFailed"));
+    logs.same("MeterCancelled", meterCounts?.cancels, count("MeterCancelled"));
+  }
+  sections.push([`Against HyperSync's own log counts, blocks ${network.startBlock} to ${block}`, logs]);
+  return sections;
 }
 
 async function apiHead(apiUrl: string): Promise<number | undefined> {
@@ -180,8 +267,8 @@ async function apiHead(apiUrl: string): Promise<number | undefined> {
   return health.indexer?.indexedBlock;
 }
 
-/** 2 and 3. The API's views, compared once both indexers have reached the same block. */
-async function compareWithApi(chainId: number, apiUrl: string): Promise<{ payers: Section; merchants: Section; block: number }> {
+/** 2, 3 and 4. The API's views, compared once both indexers have reached the same block. */
+async function compareWithApi(chainId: number, apiUrl: string): Promise<{ payers: Section; meters: Section; merchants: Section; block: number }> {
   const target = (await apiHead(apiUrl)) ?? 0;
   for (let waited = 0; (await progressOf(chainId)) < target && waited < 60; waited += 1) await sleep(1_000);
   const block = await progressOf(chainId);
@@ -240,6 +327,24 @@ async function compareWithApi(chainId: number, apiUrl: string): Promise<{ payers
     );
   }
 
+  // The API refreshes a meter from `getMeter` after its event, so a meter settled a moment ago
+  // can differ until then; the comparison runs again when it does.
+  const meterSection = new Section();
+  const servesMeters = NETWORKS[chainId]!.meter !== "" && (await fetch(`${apiUrl}/v1/x402/supported`)).ok;
+  for (const m of servesMeters ? await metersOf(chainId) : []) {
+    const response = await fetch(`${apiUrl}/v1/x402/meters/${m.meterId}`);
+    if (!response.ok) {
+      meterSection.check(false, `meter ${m.meterId}`, `API answered ${response.status}`);
+      continue;
+    }
+    const view = (await response.json()) as { status: string; totalCharged: string; closedAt: number; settlements: unknown[] };
+    const differences: string[] = [];
+    if (m.status !== view.status) differences.push(`status ${m.status} vs ${view.status}`);
+    if (m.totalCharged !== view.totalCharged) differences.push(`settled ${m.totalCharged} vs ${view.totalCharged}`);
+    if (m.closedAt !== String(view.closedAt)) differences.push(`closedAt ${m.closedAt} vs ${view.closedAt}`);
+    meterSection.check(differences.length === 0, `meter ${m.meterId}`, differences.length === 0 ? `${m.status}, ${m.totalCharged} settled` : differences.join("; "));
+  }
+
   const merchantSection = new Section();
   for (const address of merchants) {
     const response = await fetch(`${apiUrl}/v1/merchant/overview`, { headers: { authorization: `Dev ${address}` } });
@@ -269,7 +374,7 @@ async function compareWithApi(chainId: number, apiUrl: string): Promise<{ payers
     merchantSection.same("  MRR", record(mrr), sorted(overview.stats.mrr));
     merchantSection.same("  collected, 30 days", record(collected), sorted(overview.stats.collected30d));
   }
-  return { payers: payerSection, merchants: merchantSection, block };
+  return { payers: payerSection, meters: meterSection, merchants: merchantSection, block };
 }
 
 try {
@@ -277,9 +382,16 @@ try {
   for (const { id: chainId } of chains) {
     const network = NETWORKS[chainId];
     if (network === undefined) throw new Error(`chain ${chainId} is indexed but not in src/networks.ts`);
-    const block = await progressOf(chainId);
+    let block = await progressOf(chainId);
+    let chain = await compareWithChain(chainId, block);
+    const failed = () => chain.reduce((sum, [, section]) => sum + section.failures, 0);
+    for (let attempt = 2; attempt <= 3 && failed() > 0 && (await progressOf(chainId)) !== block; attempt += 1) {
+      console.log(`(chain ${chainId} moved past block ${block} while it was read; comparing again, attempt ${attempt})`);
+      block = await progressOf(chainId);
+      chain = await compareWithChain(chainId, block);
+    }
     console.log(`${network.name} (${chainId}), hub ${network.hub}, indexed to block ${block}`);
-    await compareWithChain(chainId, block);
+    for (const [title, section] of chain) print(title, section);
 
     const apiUrl = await apiFor(chainId);
     if (apiUrl === undefined) {
@@ -287,12 +399,13 @@ try {
       continue;
     }
     let api = await compareWithApi(chainId, apiUrl);
-    for (let attempt = 2; attempt <= 3 && api.payers.failures + api.merchants.failures > 0; attempt += 1) {
+    for (let attempt = 2; attempt <= 3 && api.payers.failures + api.meters.failures + api.merchants.failures > 0; attempt += 1) {
       console.log(`\n(the API view moved while it was read; comparing again, attempt ${attempt})`);
       await sleep(3_000);
       api = await compareWithApi(chainId, apiUrl);
     }
     print(`Against the API's payer view (${apiUrl}), indexer at block ${api.block}`, api.payers);
+    if (api.meters.lines.length > 0) print("Against the API's meters", api.meters);
     if (merchants.length > 0) print("Against the API's merchant overview", api.merchants);
   }
 } finally {
@@ -302,19 +415,21 @@ try {
 console.log(failures === 0 ? "\nverify: everything agrees" : `\nverify: ${failures} mismatch(es)`);
 process.exit(failures === 0 ? 0 : 1);
 
-/** Per-event log counts from HyperSync over `[fromBlock, toBlock]`, and the sum of `Charged` amounts. */
+/** Per-event log counts from HyperSync over `[fromBlock, toBlock]`, and the sums of `Charged` and `UsageSettled` amounts. */
 async function countLogs(chainId: number, fromBlock: number, toBlock: number, addresses: string[]) {
   const token = env.ENVIO_API_TOKEN;
   if (token === undefined) throw new Error("No HyperSync token (HYPERSYNC_API_TOKEN or ENVIO_API_TOKEN)");
   const url = chainId === 143 ? "https://monad.hypersync.xyz" : "https://monad-testnet.hypersync.xyz";
   const names = new Map<string, string>();
-  for (const abi of [hubAbi, chargerAbi]) {
+  for (const abi of [hubAbi, chargerAbi, meterAbi]) {
     for (const item of abi) if (item.type === "event") names.set(toEventSelector(item as AbiEvent), item.name);
   }
   const chargedTopic = [...names].find(([, name]) => name === "Charged")?.[0];
+  const settledTopic = [...names].find(([, name]) => name === "UsageSettled")?.[0];
 
   const counts: Record<string, number> = {};
   let chargedVolume = 0n;
+  let settledVolume = 0n;
   let from = fromBlock;
   while (from <= toBlock) {
     const query = JSON.stringify({ from_block: from, to_block: toBlock + 1, logs: [{ address: addresses }], field_selection: { log: ["topic0", "data"] } });
@@ -337,10 +452,12 @@ async function countLogs(chainId: number, fromBlock: number, toBlock: number, ad
         counts[name] = (counts[name] ?? 0) + 1;
         // `Charged` data is (amount, totalCharged, nextChargeAt): the amount is the first word.
         if (log.topic0 === chargedTopic) chargedVolume += BigInt(`0x${log.data.slice(2, 66)}`);
+        // `UsageSettled` data is (amount, totalCharged, receiptTotal): the same.
+        if (log.topic0 === settledTopic) settledVolume += BigInt(`0x${log.data.slice(2, 66)}`);
       }
     }
     if (body.next_block <= from) break;
     from = body.next_block;
   }
-  return { counts, chargedVolume };
+  return { counts, chargedVolume, settledVolume };
 }

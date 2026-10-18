@@ -19,13 +19,17 @@ export interface NetworkInfo {
   readonly forwarder: string;
   /** The CRE simulator's `MockKeystoneForwarder`, or empty. */
   readonly simulationForwarder: string;
+  /** The `MandateMeter`, or empty where the network has none. */
+  readonly meter: string;
+  /** The block the meter was deployed at, or 0 where there is none. */
+  readonly meterStartBlock: number;
   /** Asset symbol by lowercase address. */
   readonly assets: Readonly<Record<string, string>>;
   /** A keyless RPC, read only for block times; `ENVIO_RPC_URL_<chainId>` overrides it. */
   readonly rpcUrl: string;
 }
 
-/** `IMandateHub.Status`, in enum order. */
+/** `IMandateHub.Status` and `IMandateMeter.Status`, in enum order: the same three values. */
 export type Status = "Active" | "Delinquent" | "Cancelled";
 
 export const STATUSES: readonly Status[] = ["Active", "Delinquent", "Cancelled"];
@@ -196,5 +200,104 @@ export function moveCount<T extends StandingCounts>(counts: T, from: Standing | 
   }
   next[COUNT_FIELD[to]] += 1;
   if (isLive(to)) next.liveMandates += 1;
+  return { ...counts, ...next };
+}
+
+/*
+ * Metered mandates: `MandateMeter`. A meter is paid by usage receipts rather than on a schedule,
+ * so it has no MRR or commitment, and no pause. Its standing follows the same order as a
+ * mandate's, as far as a meter can take it: cancelled, then expired, then completed (the lifetime
+ * cap is spent), then past due (the last settlement could not be funded), then active.
+ */
+
+/** What a person reads about a meter. */
+export type MeterStanding = "Active" | "PastDue" | "Completed" | "Expired" | "Cancelled";
+
+/** The fields of a meter its standing depends on. */
+export interface MeterFigures {
+  readonly status: Status;
+  readonly expiresAt: bigint;
+  readonly totalCharged: bigint;
+  readonly maxTotal: bigint;
+}
+
+/**
+ * Receipts issued up to `expiresAt` are honored, so a meter is expired from the second after it,
+ * as a mandate is. Neither expiry nor cancellation stops a receipt issued before it from settling.
+ */
+export function meterStandingOf(meter: MeterFigures, now: bigint): MeterStanding {
+  if (meter.status === "Cancelled") return "Cancelled";
+  if (now > meter.expiresAt) return "Expired";
+  if (meter.totalCharged >= meter.maxTotal) return "Completed";
+  if (meter.status === "Delinquent") return "PastDue";
+  return "Active";
+}
+
+/** A meter that takes no new usage, whatever later settles on it. */
+export function isMeterEnded(standing: MeterStanding): boolean {
+  return standing === "Cancelled" || standing === "Expired";
+}
+
+/** Still taking usage: active, or behind on payment. */
+export function isMeterLive(standing: MeterStanding): boolean {
+  return standing === "Active" || standing === "PastDue";
+}
+
+/**
+ * The period a settlement at `now` books into, as `MandateMeter._roll` moves it: when the current
+ * one has run out, the latest boundary at or before `now`, aligned to the first period, with
+ * nothing charged in it yet. A failed settlement rolls the period too; one with nothing to settle
+ * reverts and leaves no event.
+ */
+export function rolledPeriod(periodStart: bigint, periodCharged: bigint, period: number, now: bigint): { periodStart: bigint; periodCharged: bigint } {
+  const length = BigInt(period);
+  if (now < periodStart + length) return { periodStart, periodCharged };
+  return { periodStart: now - ((now - periodStart) % length), periodCharged: 0n };
+}
+
+/** The meter count fields every aggregate keeps, one per standing plus the live total. */
+export interface MeterCounts {
+  readonly activeMeters: number;
+  readonly pastDueMeters: number;
+  readonly completedMeters: number;
+  readonly expiredMeters: number;
+  readonly cancelledMeters: number;
+  readonly liveMeters: number;
+}
+
+export const NO_METERS: MeterCounts = {
+  activeMeters: 0,
+  pastDueMeters: 0,
+  completedMeters: 0,
+  expiredMeters: 0,
+  cancelledMeters: 0,
+  liveMeters: 0,
+};
+
+const METER_COUNT_FIELD: Record<MeterStanding, Exclude<keyof MeterCounts, "liveMeters">> = {
+  Active: "activeMeters",
+  PastDue: "pastDueMeters",
+  Completed: "completedMeters",
+  Expired: "expiredMeters",
+  Cancelled: "cancelledMeters",
+};
+
+/** `counts` with one meter moved from `from` (none for a new one) to `to`. */
+export function moveMeterCount<T extends MeterCounts>(counts: T, from: MeterStanding | undefined, to: MeterStanding): T {
+  if (from === to) return counts;
+  const next: Record<keyof MeterCounts, number> = {
+    activeMeters: counts.activeMeters,
+    pastDueMeters: counts.pastDueMeters,
+    completedMeters: counts.completedMeters,
+    expiredMeters: counts.expiredMeters,
+    cancelledMeters: counts.cancelledMeters,
+    liveMeters: counts.liveMeters,
+  };
+  if (from !== undefined) {
+    next[METER_COUNT_FIELD[from]] -= 1;
+    if (isMeterLive(from)) next.liveMeters -= 1;
+  }
+  next[METER_COUNT_FIELD[to]] += 1;
+  if (isMeterLive(to)) next.liveMeters += 1;
   return { ...counts, ...next };
 }

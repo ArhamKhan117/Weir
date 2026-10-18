@@ -401,6 +401,7 @@ indexer.onEvent({ contract: "MandateHub", event: "NonceInvalidated" }, async ({ 
   context.NonceInvalidation.set({
     id: ids.log(chainId, transaction.hash, logIndex),
     chainId,
+    contract: event.srcAddress,
     signer: p.signer,
     nonce: p.nonce,
     timestamp: BigInt(block.timestamp),

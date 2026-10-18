@@ -14,6 +14,8 @@ export const NETWORKS: Readonly<Record<number, NetworkInfo>> = {
     charger: "0xc555dbb7059b46fa4d3de4b6602e3c52caccff03",
     forwarder: "0x76c9cf548b4179f8901cda1f8623568b58215e62",
     simulationForwarder: "0x9ef6468c5f37b976e57d52054c693269479a784d",
+    meter: "0x46740becd71b4f71d7c1550c73e74839791c8862",
+    meterStartBlock: 114343843,
     assets: {
       "0x00000000efe302beaa2b3e6e1b18d08d69a9012a": "AUSD",
       "0x754704bc059f8c67012fed69bc8a327a5aafb603": "USDC",
@@ -27,6 +29,8 @@ export const NETWORKS: Readonly<Record<number, NetworkInfo>> = {
     charger: "0xb4333c519c9d5c300737824ca5792891dbba9e03",
     forwarder: "0xf8344cfd5c43616a4366c34e3eee75af79a74482",
     simulationForwarder: "0xb9f79d863261869b234c481d1f9a7af84aead192",
+    meter: "0x75a6385f9be0dcb12693b0807db6244b4a947a36",
+    meterStartBlock: 71976729,
     assets: {
       "0x534b2f3a21130d7a60830c2df862319e593943a3": "USDC",
       "0xf3066908dabe11f2e72f6887d9943eeb621a0eb9": "tAUSD",

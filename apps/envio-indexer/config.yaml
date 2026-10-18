@@ -2,7 +2,7 @@
 # packages/shared/src/abi.ts. Do not edit: update the deployment record, then run `pnpm sync`.
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: weir
-description: Weir mandates, charges, CRE reports and merchant revenue on Monad
+description: Weir mandates, charges, CRE reports, pay-per-request meters and merchant revenue on Monad
 # Every address the indexer stores or keys an entity by is lowercase, so a GraphQL filter needs
 # no case folding.
 address_format: lowercase
@@ -31,6 +31,14 @@ contracts:
     events:
       - event: ReportCharged
       - event: ChargeReverted
+  - name: MandateMeter
+    abi_file_path: ./abis/MandateMeter.json
+    events:
+      - event: MeterCreated
+      - event: UsageSettled
+      - event: SettleFailed
+      - event: MeterCancelled
+      - event: NonceInvalidated
 chains:
   - id: 143 # Monad
     start_block: 110186397
@@ -48,6 +56,10 @@ chains:
         address: "0x184c6c26c1cb7f79885ed7c71e810e564ceec6a0"
       - name: MandateCharger
         address: "0xc555dbb7059b46fa4d3de4b6602e3c52caccff03"
+      # Deployed after the hub: read from its own deployment block.
+      - name: MandateMeter
+        address: "0x46740becd71b4f71d7c1550c73e74839791c8862"
+        start_block: 114343843
   - id: 10143 # Monad Testnet
     start_block: 67841535
     hypersync_config:
@@ -64,3 +76,7 @@ chains:
         address: "0x08ca57f960d5d9a2b06475c6ca4583eda4680bc1"
       - name: MandateCharger
         address: "0xb4333c519c9d5c300737824ca5792891dbba9e03"
+      # Deployed after the hub: read from its own deployment block.
+      - name: MandateMeter
+        address: "0x75a6385f9be0dcb12693b0807db6244b4a947a36"
+        start_block: 71976729

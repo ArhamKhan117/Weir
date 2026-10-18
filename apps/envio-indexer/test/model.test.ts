@@ -4,15 +4,22 @@ import { describe, expect, it } from "vitest";
 
 import {
   NO_MANDATES,
+  NO_METERS,
   commitmentOf,
   dayOf,
   failureReason,
+  isMeterEnded,
+  meterStandingOf,
   moveCount,
+  moveMeterCount,
   mrrOf,
   resumedCheckpoint,
+  rolledPeriod,
   standingOf,
   triggerOf,
   type MandateFigures,
+  type MeterFigures,
+  type MeterStanding,
   type NetworkInfo,
   type Standing,
   type Status,
@@ -104,6 +111,35 @@ describe("resume", () => {
   });
 });
 
+describe("meters", () => {
+  it("puts cancellation before expiry, expiry before completion, and completion before delinquency", () => {
+    const base: MeterFigures = { status: "Delinquent", expiresAt: 100n, totalCharged: 0n, maxTotal: 10n };
+    expect(meterStandingOf(base, 50n)).toBe("PastDue");
+    expect(meterStandingOf({ ...base, status: "Active" }, 100n)).toBe("Active");
+    expect(meterStandingOf({ ...base, totalCharged: 10n }, 50n)).toBe("Completed");
+    expect(meterStandingOf({ ...base, totalCharged: 10n }, 101n)).toBe("Expired");
+    expect(meterStandingOf({ ...base, status: "Cancelled" }, 101n)).toBe("Cancelled");
+    const standings: MeterStanding[] = ["Active", "PastDue", "Completed", "Expired", "Cancelled"];
+    expect(standings.filter(isMeterEnded)).toEqual(["Expired", "Cancelled"]);
+  });
+
+  it("rolls the period as MandateMeter._roll does, aligned to the first one", () => {
+    // Still inside the period: nothing moves.
+    expect(rolledPeriod(1_000n, 7n, 60, 1_059n)).toEqual({ periodStart: 1_000n, periodCharged: 7n });
+    // Exactly at the boundary, and several periods later: the latest boundary, nothing charged.
+    expect(rolledPeriod(1_000n, 7n, 60, 1_060n)).toEqual({ periodStart: 1_060n, periodCharged: 0n });
+    expect(rolledPeriod(1_000n, 7n, 60, 1_250n)).toEqual({ periodStart: 1_240n, periodCharged: 0n });
+  });
+
+  it("moves one meter between counts, keeping the live total", () => {
+    const one = moveMeterCount(NO_METERS, undefined, "Active");
+    expect(one).toMatchObject({ activeMeters: 1, liveMeters: 1 });
+    const behind = moveMeterCount(one, "Active", "PastDue");
+    expect(behind).toMatchObject({ activeMeters: 0, pastDueMeters: 1, liveMeters: 1 });
+    expect(moveMeterCount(behind, "PastDue", "Expired")).toMatchObject({ pastDueMeters: 0, expiredMeters: 1, liveMeters: 0 });
+  });
+});
+
 describe("helpers", () => {
   it("names every failure code, and refuses to guess at others", () => {
     expect([1, 2, 3, 4, 0].map(failureReason)).toEqual([
@@ -123,6 +159,8 @@ describe("helpers", () => {
       charger: "0x0000000000000000000000000000000000000002",
       forwarder: "0x0000000000000000000000000000000000000003",
       simulationForwarder: "0x0000000000000000000000000000000000000004",
+      meter: "",
+      meterStartBlock: 0,
       assets: {},
       rpcUrl: "",
     };

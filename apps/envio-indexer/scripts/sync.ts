@@ -3,9 +3,9 @@
  * records, so a redeployed hub is one command here:
  *
  *   config.yaml        chains, addresses and start blocks    packages/shared/src/deployments.json
- *   abis/*.json        the hub's and the charger's ABIs      packages/shared/src/abi.ts
- *   src/networks.ts    per chain: assets, charger, CRE forwarders, and the revert selectors
- *                      a batch can report, named
+ *   abis/*.json        each indexed contract's ABI           packages/shared/src/abi.ts
+ *   src/networks.ts    per chain: assets, charger, CRE forwarders, the meter, and the revert
+ *                      selectors a batch can report, named
  *
  *   pnpm sync           write them
  *   pnpm sync:check     exit 1 when any of them is out of date
@@ -32,11 +32,14 @@ interface IndexedContract {
   abiExport: string;
   events: string[];
   ignored: string[];
+  /** Whether its errors can come back from a batch charge, and so belong in `REVERT_REASONS`. */
+  batchErrors: boolean;
 }
 
 /**
  * The contracts indexed, the export in `abi.ts` each ABI comes from, the events handled, and the
- * events deliberately left out.
+ * events deliberately left out. The hub and the charger are on every chain; the meter only where
+ * the record has one, from its own start block.
  */
 const CONTRACTS: IndexedContract[] = [
   {
@@ -56,8 +59,17 @@ const CONTRACTS: IndexedContract[] = [
     // ERC-5267's announcement of a new EIP-712 domain. The hub's domain is fixed at deployment,
     // so it never fires.
     ignored: ["EIP712DomainChanged"],
+    batchErrors: true,
   },
-  { name: "MandateCharger", abiExport: "mandateChargerAbi", events: ["ReportCharged", "ChargeReverted"], ignored: [] },
+  { name: "MandateCharger", abiExport: "mandateChargerAbi", events: ["ReportCharged", "ChargeReverted"], ignored: [], batchErrors: true },
+  {
+    name: "MandateMeter",
+    abiExport: "mandateMeterAbi",
+    events: ["MeterCreated", "UsageSettled", "SettleFailed", "MeterCancelled", "NonceInvalidated"],
+    // Fixed at deployment, as the hub's.
+    ignored: ["EIP712DomainChanged"],
+    batchErrors: false,
+  },
 ];
 
 /**
@@ -127,6 +139,7 @@ interface DeploymentRecord {
       network: string;
       chainId: number;
       startBlock: number;
+      meterStartBlock?: number;
       contracts?: Record<string, string>;
       assets?: Record<string, string>;
       chainlink?: { forwarder?: string; simulationForwarder?: string };
@@ -142,6 +155,8 @@ interface Network {
   charger: string;
   forwarder: string;
   simulationForwarder: string;
+  /** The meter and the block it was deployed at, where there is one. */
+  meter: { address: string; startBlock: number } | undefined;
   assets: [string, string][];
   hypersync: string;
   rpc: string;
@@ -154,9 +169,10 @@ function networksOf(deployments: DeploymentRecord): Network[] {
     .map((entry) => {
       const chain = CHAINS[entry.chainId];
       if (chain === undefined) fail(`chain ${entry.chainId} is not a Monad network this script knows`);
-      const { MandateHub: hub, MandateCharger: charger } = entry.contracts ?? {};
+      const { MandateHub: hub, MandateCharger: charger, MandateMeter: meter } = entry.contracts ?? {};
       if (hub === undefined || charger === undefined) fail(`chain ${entry.chainId} records no MandateHub or MandateCharger`);
       if (!Number.isInteger(entry.startBlock)) fail(`chain ${entry.chainId} records no start block`);
+      if (meter !== undefined && !Number.isInteger(entry.meterStartBlock)) fail(`chain ${entry.chainId} records a MandateMeter but no meterStartBlock`);
       return {
         chainId: entry.chainId,
         name: entry.network,
@@ -165,6 +181,7 @@ function networksOf(deployments: DeploymentRecord): Network[] {
         charger: charger.toLowerCase(),
         forwarder: (entry.chainlink?.forwarder ?? "").toLowerCase(),
         simulationForwarder: (entry.chainlink?.simulationForwarder ?? "").toLowerCase(),
+        meter: meter === undefined ? undefined : { address: meter.toLowerCase(), startBlock: entry.meterStartBlock! },
         assets: Object.entries(entry.assets ?? {})
           .map(([symbol, address]): [string, string] => [address.toLowerCase(), symbol])
           .sort(([a], [b]) => a.localeCompare(b)),
@@ -185,7 +202,7 @@ function renderConfig(networks: Network[]): string {
     ...GENERATED_YAML,
     "# yaml-language-server: $schema=./node_modules/envio/evm.schema.json",
     "name: weir",
-    "description: Weir mandates, charges, CRE reports and merchant revenue on Monad",
+    "description: Weir mandates, charges, CRE reports, pay-per-request meters and merchant revenue on Monad",
     "# Every address the indexer stores or keys an entity by is lowercase, so a GraphQL filter needs",
     "# no case folding.",
     "address_format: lowercase",
@@ -222,6 +239,14 @@ function renderConfig(networks: Network[]): string {
       "      - name: MandateCharger",
       `        address: "${network.charger}"`,
     );
+    if (network.meter !== undefined) {
+      lines.push(
+        "      # Deployed after the hub: read from its own deployment block.",
+        "      - name: MandateMeter",
+        `        address: "${network.meter.address}"`,
+        `        start_block: ${network.meter.startBlock}`,
+      );
+    }
   }
   return `${lines.join("\n")}\n`;
 }
@@ -247,6 +272,8 @@ function renderNetworks(networks: Network[], errors: [string, string][]): string
       `    charger: "${network.charger}",`,
       `    forwarder: "${network.forwarder}",`,
       `    simulationForwarder: "${network.simulationForwarder}",`,
+      `    meter: "${network.meter?.address ?? ""}",`,
+      `    meterStartBlock: ${network.meter?.startBlock ?? 0},`,
       "    assets: {",
       ...network.assets.map(([address, symbol]) => `      "${address}": ${JSON.stringify(symbol)},`),
       "    },",
@@ -281,7 +308,7 @@ function main(): void {
 
   const outputs = new Map<string, string>([
     ["config.yaml", renderConfig(networks)],
-    ["src/networks.ts", renderNetworks(networks, errorSelectors(abis))],
+    ["src/networks.ts", renderNetworks(networks, errorSelectors(abis.filter((_, index) => CONTRACTS[index]!.batchErrors)))],
     ...CONTRACTS.map((contract, index): [string, string] => [`abis/${contract.name}.json`, `${JSON.stringify(abis[index], null, 2)}\n`]),
   ]);
 
@@ -299,7 +326,9 @@ function main(): void {
 
   const where = relative(process.cwd(), projectDir) || ".";
   if (check && stale.length > 0) fail(`out of date in ${where}: ${stale.join(", ")}. Run \`pnpm sync\`.`);
-  const summary = networks.map((n) => `${n.name} (${n.chainId}) from block ${n.startBlock}, hub ${n.hub}`).join("; ");
+  const summary = networks
+    .map((n) => `${n.name} (${n.chainId}) from block ${n.startBlock}, hub ${n.hub}${n.meter === undefined ? "" : `, meter ${n.meter.address} from block ${n.meter.startBlock}`}`)
+    .join("; ");
   console.log(check ? `sync: up to date with ${summary}` : `sync: ${stale.length === 0 ? "nothing to change" : `wrote ${stale.join(", ")}`} for ${summary}`);
 }
 

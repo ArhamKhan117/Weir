@@ -8,13 +8,29 @@
  * blocks, since the figures only need to be right by the time they are read. Either way each
  * expiry is dated to its own day in the daily series, not to the sweep that found it.
  *
+ * Meters expire the same way and are swept in the same pass. An expired meter leaves every active
+ * and live count; receipts issued before its expiry can still settle on it.
+ *
  * A pass needs the block's time from an RPC (see `clock.ts`), and makes no call at all while
  * nothing is open.
  */
 
 import { indexer } from "envio";
 
-import { closeBooks, closeDays, ids, networkInfo, openBooks, openDays, partiesOf, restate, timeline } from "../books.js";
+import {
+  closeBooks,
+  closeDays,
+  closeMeterBooks,
+  ids,
+  networkInfo,
+  openBooks,
+  openDays,
+  openMeterBooks,
+  partiesOf,
+  restate,
+  restateMeter,
+  timeline,
+} from "../books.js";
 import { blockTime } from "../clock.js";
 import { dayOf } from "../model.js";
 import { NETWORKS } from "../networks.js";
@@ -44,12 +60,15 @@ indexer.onBlock(
     if (!context.chain.isRealtime && pass % HISTORICAL_STRIDE !== 0) return;
 
     const network = await context.Network.get(ids.network(chainId));
-    if (network === undefined || network.openMandates === 0) return;
+    if (network === undefined || network.openMandates + network.openMeters === 0) return;
     const time = await context.effect(blockTime, block.number);
     if (time === null) return;
     const now = BigInt(time);
 
-    const due = await context.Mandate.getWhere({ ended: { _eq: false }, expiresAt: { _lt: now } });
+    const [due, dueMeters] = await Promise.all([
+      network.openMandates === 0 ? [] : context.Mandate.getWhere({ ended: { _eq: false }, expiresAt: { _lt: now } }),
+      network.openMeters === 0 ? [] : context.Meter.getWhere({ ended: { _eq: false }, expiresAt: { _lt: now } }),
+    ]);
     const ordered = [...due].sort((a, b) => (a.mandateId < b.mandateId ? -1 : a.mandateId > b.mandateId ? 1 : 0));
 
     for (const before of ordered) {
@@ -76,6 +95,12 @@ indexer.onBlock(
         kind: "Expired",
         timestamp: expiredAt,
       });
+    }
+
+    for (const before of [...dueMeters].sort((a, b) => (a.meterId < b.meterId ? -1 : a.meterId > b.meterId ? 1 : 0))) {
+      const books = await openMeterBooks(context, partiesOf(before), now);
+      context.Meter.set(restateMeter(books, before, before, now));
+      closeMeterBooks(context, books);
     }
 
     const current = (await context.Network.get(ids.network(chainId))) ?? network;

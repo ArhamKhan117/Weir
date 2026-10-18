@@ -10,6 +10,9 @@
  * Handlers that touch several mandates (the expiry sweep) open and close the books once per
  * mandate: a close writes to the in-memory store, and the next open reads from it.
  *
+ * Meters keep books of their own on the same rows (`openMeterBooks`, `restateMeter`): their counts
+ * and amounts sit beside the mandates' in fields of their own, so no mandate figure includes them.
+ *
  * Every row is copied as it is opened. `get` hands back the store's own object, and a handler runs
  * twice (once to preload, once for real): a change made in place during the first run would still
  * be there in the second, and every figure would be counted twice.
@@ -21,6 +24,7 @@ import type {
   Mandate,
   MandateEvent,
   Merchant,
+  Meter,
   MerchantAsset,
   MerchantCustomer,
   MerchantDailyStat,
@@ -31,13 +35,18 @@ import type {
 
 import {
   NO_MANDATES,
+  NO_METERS,
   commitmentOf,
   dayOf,
   isFinal,
   isLive,
+  isMeterEnded,
+  meterStandingOf,
   moveCount,
+  moveMeterCount,
   mrrOf,
   standingOf,
+  type MeterStanding,
   type NetworkInfo,
   type Standing,
 } from "./model.js";
@@ -50,6 +59,7 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 export const ids = {
   network: (chainId: number) => `${chainId}`,
   mandate: (chainId: number, mandateId: bigint) => `${chainId}-${mandateId}`,
+  meter: (chainId: number, meterId: bigint) => `${chainId}-${meterId}`,
   account: (chainId: number, address: string) => `${chainId}-${address}`,
   accountAsset: (chainId: number, address: string, asset: string) => `${chainId}-${address}-${asset}`,
   customer: (chainId: number, merchant: string, payer: string) => `${chainId}-${merchant}-${payer}`,
@@ -85,7 +95,7 @@ export interface Books {
   customer: Mutable<MerchantCustomer>;
 }
 
-export function partiesOf(mandate: Mandate): Parties {
+export function partiesOf(mandate: Pick<Mandate, "chainId" | "merchant_id" | "payer_id" | "asset">): Parties {
   const prefix = `${mandate.chainId}-`;
   return {
     chainId: mandate.chainId,
@@ -103,6 +113,7 @@ export function newNetwork(chainId: number, now: bigint): Mutable<Network> {
     chainId,
     hub: info.hub,
     charger: info.charger,
+    meter: info.meter,
     mandateCount: 0,
     ...NO_MANDATES,
     openMandates: 0,
@@ -114,6 +125,71 @@ export function newNetwork(chainId: number, now: bigint): Mutable<Network> {
     mrr: 0n,
     reportCount: 0,
     standingAsOf: now,
+    meterCount: 0,
+    ...NO_METERS,
+    openMeters: 0,
+    meterPayerCount: 0,
+    meterMerchantCount: 0,
+    meterSettlementCount: 0,
+    meterFailureCount: 0,
+    meteredVolume: 0n,
+  };
+}
+
+const NO_METER_FIGURES = { meterCount: 0, ...NO_METERS, meterSettlements: 0, meterFailures: 0 };
+
+function newMerchant(chainId: number, merchant: string, now: bigint): Mutable<Merchant> {
+  return {
+    id: ids.account(chainId, merchant),
+    chainId,
+    address: merchant,
+    mandateCount: 0,
+    ...NO_MANDATES,
+    mrr: 0n,
+    revenue: 0n,
+    chargeCount: 0,
+    failureCount: 0,
+    customers: 0,
+    activeCustomers: 0,
+    ...NO_METER_FIGURES,
+    meteredRevenue: 0n,
+    firstSeenAt: now,
+  };
+}
+
+function newMerchantAsset(chainId: number, merchant: string, asset: string): Mutable<MerchantAsset> {
+  return {
+    id: ids.accountAsset(chainId, merchant, asset),
+    chainId,
+    merchant_id: ids.account(chainId, merchant),
+    asset,
+    assetSymbol: assetSymbol(chainId, asset),
+    activeMandates: 0,
+    pastDueMandates: 0,
+    liveMandates: 0,
+    mrr: 0n,
+    revenue: 0n,
+    chargeCount: 0,
+    failureCount: 0,
+    meteredRevenue: 0n,
+    meterSettlements: 0,
+  };
+}
+
+function newPayer(chainId: number, payer: string, now: bigint): Mutable<Payer> {
+  return {
+    id: ids.account(chainId, payer),
+    chainId,
+    address: payer,
+    mandateCount: 0,
+    ...NO_MANDATES,
+    committedMonthly: 0n,
+    totalPaid: 0n,
+    chargeCount: 0,
+    failureCount: 0,
+    ...NO_METER_FIGURES,
+    meteredPaid: 0n,
+    firstSeenAt: now,
   };
 }
 
@@ -135,46 +211,9 @@ export async function openBooks(context: Context, parties: Parties, now: bigint)
 
   const books: Books = {
     network: network === undefined ? newNetwork(chainId, now) : { ...network },
-    merchant: merchantRow !== undefined ? { ...merchantRow } : {
-      id: ids.account(chainId, merchant),
-      chainId,
-      address: merchant,
-      mandateCount: 0,
-      ...NO_MANDATES,
-      mrr: 0n,
-      revenue: 0n,
-      chargeCount: 0,
-      failureCount: 0,
-      customers: 0,
-      activeCustomers: 0,
-      firstSeenAt: now,
-    },
-    merchantAsset: merchantAsset !== undefined ? { ...merchantAsset } : {
-      id: ids.accountAsset(chainId, merchant, asset),
-      chainId,
-      merchant_id: ids.account(chainId, merchant),
-      asset,
-      assetSymbol: symbol,
-      activeMandates: 0,
-      pastDueMandates: 0,
-      liveMandates: 0,
-      mrr: 0n,
-      revenue: 0n,
-      chargeCount: 0,
-      failureCount: 0,
-    },
-    payer: payerRow !== undefined ? { ...payerRow } : {
-      id: ids.account(chainId, payer),
-      chainId,
-      address: payer,
-      mandateCount: 0,
-      ...NO_MANDATES,
-      committedMonthly: 0n,
-      totalPaid: 0n,
-      chargeCount: 0,
-      failureCount: 0,
-      firstSeenAt: now,
-    },
+    merchant: merchantRow !== undefined ? { ...merchantRow } : newMerchant(chainId, merchant, now),
+    merchantAsset: merchantAsset !== undefined ? { ...merchantAsset } : newMerchantAsset(chainId, merchant, asset),
+    payer: payerRow !== undefined ? { ...payerRow } : newPayer(chainId, payer, now),
     payerAsset: payerAsset !== undefined ? { ...payerAsset } : {
       id: ids.accountAsset(chainId, payer, asset),
       chainId,
@@ -200,8 +239,10 @@ export async function openBooks(context: Context, parties: Parties, now: bigint)
       lastChargedAt: undefined,
     },
   };
-  if (merchantRow === undefined) books.network.merchantCount += 1;
-  if (payerRow === undefined) books.network.payerCount += 1;
+  // A party is counted at its first mandate, which is the only event that opens books for a party
+  // with none: its row may already be there from a meter.
+  if ((merchantRow?.mandateCount ?? 0) === 0) books.network.merchantCount += 1;
+  if ((payerRow?.mandateCount ?? 0) === 0) books.network.payerCount += 1;
   if (customer === undefined) books.merchant.customers += 1;
   return books;
 }
@@ -267,7 +308,20 @@ export function restate(books: Books, before: Mandate | undefined, draft: Mandat
   return after;
 }
 
-const EMPTY_DAY = { volume: 0n, charges: 0, failures: 0, newMandates: 0, cancellations: 0, expirations: 0, activeMandates: 0, mrr: 0n };
+const EMPTY_DAY = {
+  volume: 0n,
+  charges: 0,
+  failures: 0,
+  newMandates: 0,
+  cancellations: 0,
+  expirations: 0,
+  activeMandates: 0,
+  mrr: 0n,
+  newMeters: 0,
+  meteredVolume: 0n,
+  meterSettlements: 0,
+  meterFailures: 0,
+};
 
 /** The network's row for the UTC day `at` falls in. */
 export async function openDay(context: Context, chainId: number, at: bigint): Promise<Mutable<DailyStat>> {
@@ -308,7 +362,7 @@ export async function openDays(context: Context, chainId: number, merchant: stri
  * MRR are copied in as the day's latest. A past day that a late count lands on (an expiry the
  * sweep found after midnight) keeps its own, unless the count is what creates its row.
  */
-export function closeDays(context: Context, days: Days, books: Books, snapshot = true): void {
+export function closeDays(context: Context, days: Days, books: Pick<Books, "network" | "merchant">, snapshot = true): void {
   context.DailyStat.set(
     snapshot || days.fresh.day ? { ...days.day, activeMandates: books.network.activeMandates, mrr: books.network.mrr } : days.day,
   );
@@ -333,4 +387,70 @@ export function timeline(
     transactionHash: undefined,
     ...entry,
   });
+}
+
+/** The aggregates one meter feeds. */
+export interface MeterBooks {
+  network: Mutable<Network>;
+  merchant: Mutable<Merchant>;
+  merchantAsset: Mutable<MerchantAsset>;
+  payer: Mutable<Payer>;
+}
+
+/**
+ * The books for one meter's parties, created empty where this is the first time they are seen. A
+ * party is counted as a meter merchant or payer at its first meter, which is the only event that
+ * opens these books for a party with none.
+ */
+export async function openMeterBooks(context: Context, parties: Parties, now: bigint): Promise<MeterBooks> {
+  const { chainId, merchant, payer, asset } = parties;
+  const [network, merchantRow, merchantAsset, payerRow] = await Promise.all([
+    context.Network.get(ids.network(chainId)),
+    context.Merchant.get(ids.account(chainId, merchant)),
+    context.MerchantAsset.get(ids.accountAsset(chainId, merchant, asset)),
+    context.Payer.get(ids.account(chainId, payer)),
+  ]);
+  const books: MeterBooks = {
+    network: network === undefined ? newNetwork(chainId, now) : { ...network },
+    merchant: merchantRow !== undefined ? { ...merchantRow } : newMerchant(chainId, merchant, now),
+    merchantAsset: merchantAsset !== undefined ? { ...merchantAsset } : newMerchantAsset(chainId, merchant, asset),
+    payer: payerRow !== undefined ? { ...payerRow } : newPayer(chainId, payer, now),
+  };
+  if ((merchantRow?.meterCount ?? 0) === 0) books.network.meterMerchantCount += 1;
+  if ((payerRow?.meterCount ?? 0) === 0) books.network.meterPayerCount += 1;
+  return books;
+}
+
+export function closeMeterBooks(context: Context, books: MeterBooks): void {
+  context.Network.set(books.network);
+  context.Merchant.set(books.merchant);
+  context.MerchantAsset.set(books.merchantAsset);
+  context.Payer.set(books.payer);
+}
+
+/**
+ * `draft` with its standing evaluated at `now`, and the change from `before` (none for a new
+ * meter) carried into every meter count in `books`.
+ */
+export function restateMeter(books: MeterBooks, before: Meter | undefined, draft: Meter, now: bigint): Meter {
+  const standing = meterStandingOf(draft, now);
+  const after: Meter = {
+    ...draft,
+    standing,
+    ended: isMeterEnded(standing),
+    standingAsOf: now,
+    remaining: draft.maxTotal - draft.totalCharged,
+  };
+
+  const from: MeterStanding | undefined = before?.standing;
+  if (from !== standing) {
+    books.network = moveMeterCount(books.network, from, standing);
+    books.merchant = moveMeterCount(books.merchant, from, standing);
+    books.payer = moveMeterCount(books.payer, from, standing);
+    const wasOpen = from !== undefined && !isMeterEnded(from);
+    books.network.openMeters += (isMeterEnded(standing) ? 0 : 1) - (wasOpen ? 1 : 0);
+  }
+
+  if (now > books.network.standingAsOf) books.network.standingAsOf = now;
+  return after;
 }

@@ -1,7 +1,7 @@
 # Weir on Envio HyperIndex
 
-A GraphQL API over Weir: every mandate and where it stands, every charge and who sent it, Chainlink CRE reports, and each merchant's revenue, MRR and customers, on Monad.
-It is an [Envio HyperIndex](https://docs.envio.dev) project that reads `MandateHub` and `MandateCharger` through HyperSync.
+A GraphQL API over Weir: every mandate and where it stands, every charge and who sent it, Chainlink CRE reports, every pay-per-request meter and what it settled, and each merchant's revenue, MRR and customers, on Monad.
+It is an [Envio HyperIndex](https://docs.envio.dev) project that reads `MandateHub`, `MandateCharger` and `MandateMeter` through HyperSync.
 
 It keeps the same figures as the Weir API's own index, by the same rules, so a merchant dashboard or a payer's page can be built on it alone.
 `pnpm verify` checks that claim against the chain and against a running API.
@@ -16,12 +16,15 @@ It keeps the same figures as the Weir API's own index, by the same rules, so a m
 | `ChargeRevert` | `ChargeReverted` from a batch | The revert selector and the error it names, such as `NotDue(uint64,uint256)` |
 | `ChargerReport` | `ReportCharged` | Workflow id, forwarder, whether the CRE simulator sent it, attempted, charged, failed, reverted, volume, and links to its charges |
 | `MandateEvent` | hub event, and each expiry | A mandate's timeline: created, charged, failed, paused, resumed, cancelled, manager changed, expired |
-| `NonceInvalidation` | `NonceInvalidated` | The signer and the nonce it voided |
-| `Payer`, `PayerAsset` | payer, and payer per asset | Mandates by standing, committed each month, paid in total, charges, failures |
-| `Merchant`, `MerchantAsset` | merchant, and merchant per asset | Mandates by standing, MRR, revenue, charges, failures, customers and active customers |
+| `NonceInvalidation` | `NonceInvalidated` | The contract (hub or meter), the signer and the nonce it voided |
+| `Meter` | pay-per-request meter | Every term, status, standing, `totalCharged`, `remaining`, the period as the contract keeps it, the last receipt total settled, settlements and failures, the last failure and its reason, created and cancelled times, blocks and transactions |
+| `MeterSettlement` | `UsageSettled` | Amount, the meter's new total, the receipt total it settled against, sender, block, time, transaction |
+| `MeterSettleFailure` | `SettleFailed` | Reason (`InsufficientBalance`, `InsufficientAllowance`) and code, amount required |
+| `Payer`, `PayerAsset` | payer, and payer per asset | Mandates by standing, committed each month, paid in total, charges, failures; meters by standing, paid through meters, settlements and failures |
+| `Merchant`, `MerchantAsset` | merchant, and merchant per asset | Mandates by standing, MRR, revenue, charges, failures, customers and active customers; meters by standing, metered revenue, settlements and failures |
 | `MerchantCustomer` | merchant and payer | Mandates, live mandates, paid in total, last charge |
-| `DailyStat`, `MerchantDailyStat` | UTC day, network-wide and per merchant | Volume, charges, failures, new mandates, cancellations, expirations, reports, and active mandates and MRR at the day's last change |
-| `Network` | chain | Every count and total across the network, and `standingAsOf` |
+| `DailyStat`, `MerchantDailyStat` | UTC day, network-wide and per merchant | Volume, charges, failures, new mandates, cancellations, expirations, reports, and active mandates and MRR at the day's last change; new meters, metered volume, settlements and failures |
+| `Network` | chain | Every count and total across the network, mandates and meters apart, and `standingAsOf` |
 
 Ids carry the chain, so the index can hold Testnet and Mainnet at once: `10143-7` is mandate 7 on Testnet, `10143-0xabc...` an account.
 Every address is lowercase, so a filter never needs case folding.
@@ -33,7 +36,7 @@ Amounts are base units as `BigInt`; every asset the hub accepts is a six-decimal
 The API's "Past due" is `PastDue` here, because a GraphQL enum value cannot contain a space.
 `test/model.test.ts` holds this copy to the original over every combination that can tell them apart.
 
-**Expiry** is the one standing no event announces.
+**Expiry** is the one standing no event announces, for a mandate or a meter.
 A block handler (`src/handlers/Sweep.ts`) finds open mandates past their `expiresAt` about once a minute at the head and restates them, which takes them out of MRR, commitments and active counts.
 It needs the time of a block, which HyperSync does not hand a block handler, so it asks an RPC once per pass (cached, and skipped while nothing is open).
 While the indexer catches up it runs about once an hour of blocks, and it dates each expiry to its own day either way.
@@ -52,6 +55,13 @@ While the indexer catches up it runs about once an hour of blocks, and it dates 
 
 Every mandate field is rebuilt from events alone (the checkpoint shift on resume included), so a full sync runs at HyperSync's speed and `pnpm verify` finds every mandate equal to `getMandate`, field for field.
 Every aggregate is kept by one function, `restate` in `src/books.ts`, that carries a standing change into every count, MRR and commitment at once; the handler tests check each aggregate against the mandates it sums.
+
+**Meters** are pay-per-request: a payer authorizes a merchant once, signs a running total per request off chain, and anyone settles the latest one.
+Their money is kept beside the mandates', never in it: a settlement adds to `meteredRevenue`, `meteredPaid` and `meteredVolume`, and `revenue`, `totalPaid`, `volume`, MRR and every mandate count stay mandates only, which is what the API's readers expect.
+A meter's standing is `Cancelled`, then `Expired`, then `Completed` (the lifetime cap is spent), then `PastDue` (the last settlement could not be funded; the next funded one clears it), then `Active`.
+The same sweep expires meters, and receipts issued before a meter was cancelled or expired still settle on it without reopening it.
+Every meter field is rebuilt from events alone, the period roll on each settlement or failed settlement included, so `pnpm verify` finds every meter equal to `getMeter`; `restateMeter` keeps the meter counts as `restate` keeps the mandate ones.
+`Network.merchantCount` and `payerCount` count parties with a mandate, `meterMerchantCount` and `meterPayerCount` those with a meter, so a party first seen through a meter is counted at its first mandate.
 
 ## Live
 
@@ -91,6 +101,8 @@ The Weir app's features read this index, through the API, which queries its data
 - **The business dashboard's Revenue section** (`GET /v1/merchant/analytics`): the last 30 days of `MerchantDailyStat` per day, all-time `revenue`, `mrr`, `customers` and `activeCustomers` from `Merchant`, summed across every wallet the business is paid to, and the split of its charges by `Charge.trigger`, so a business sees which ones the Chainlink CRE workflow sent.
 - **The home page's live figures** (`GET /v1/stats`): each `Network`'s mandates, volume, charges and CRE reports, and 30 days of `DailyStat`.
 
+Both read mandate figures only; the meter entities and fields are not read by the API yet.
+
 Run locally, the indexer follows both networks and a charge shows on the dashboard a few seconds after it lands; `pnpm verify` checks the figures against the chain and the API.
 
 ## Run it locally
@@ -119,16 +131,16 @@ A full Testnet sync takes a few seconds: the hub's whole history is a few thousa
 
 `pnpm verify` compares the index with three sources and exits 1 on any difference:
 
-1. The chain: every mandate against `getMandate` at the indexed block, and `nextMandateId`.
-2. HyperSync's own count of every event, and the sum of every `Charged` amount.
-3. The API: `GET /v1/payers/:address` for every payer, and `GET /v1/merchant/overview` for each `--merchant` (mandates, active, past due, MRR and collected in 30 days, per asset).
+1. The chain: every mandate against `getMandate` at the indexed block, and `nextMandateId`; every meter against `getMeter`, and `nextMeterId`.
+2. HyperSync's own count of every event, and the sums of every `Charged` and `UsageSettled` amount.
+3. The API: `GET /v1/payers/:address` for every payer, `GET /v1/x402/meters/:id` for every meter where the API serves one, and `GET /v1/merchant/overview` for each `--merchant` (mandates, active, past due, MRR and collected in 30 days, per asset).
 
 The overview signs in with the dev scheme (`WEIR_DEV_AUTH=1`), which creates a merchant account for an address the API has not seen, so pass only merchants that already have one.
 Both indexers follow the head on their own; the script waits for this one to reach the block the API reports, and compares again when a transaction lands in between.
 
 ## After the hub is redeployed
 
-Addresses, start blocks, CRE forwarders, asset symbols and ABIs all come from the repository's own records, through one script:
+Addresses, start blocks (the meter's own `meterStartBlock` included), CRE forwarders, asset symbols and ABIs all come from the repository's own records, through one script:
 
 ```bash
 pnpm sync                  # from packages/shared/src/deployments.json and packages/shared/src/abi.ts
@@ -138,6 +150,7 @@ pnpm local start -r        # a new hub is a new history: index it from its start
 `pnpm sync` writes `config.yaml`, `abis/` and `src/networks.ts`, which are committed because the hosted service builds from this directory alone.
 `pnpm sync:check` fails when any of them is out of date.
 Every network in `deployments.json` becomes a chain in `config.yaml`, so the one index holds Mainnet and Testnet together.
+A network whose record has a `MandateMeter` gets it as a contract of its own, read from its own start block.
 The sync also fails when a contract gains an event nobody has decided how to index.
 
 ## Tests
@@ -149,6 +162,8 @@ pnpm typecheck    # codegen, then tsc
 
 `test/handlers.test.ts` runs the real config, schema and handlers in Envio's test indexer on simulated events, with no network: a periodic mandate through a keeper charge, a failure, a direct charge and its cap; a stream's settlement on pause and its checkpoint on resume; a CRE report with a charge, a failure and a revert; an expiry found by the sweep; a cancellation.
 After each, every aggregate is checked against the mandates it sums.
+The meter cases cover settlements within the caps and a period roll, a failed settlement and the recovery after it, a party seen through a meter before its first mandate, a cancellation with a settlement after it, a spent lifetime cap and an expiry found by the sweep, each checked against the meters and settlements the aggregates sum.
+The test indexer will not run a second range past a contract's own start block, so a meter case that goes on copies every row into a fresh test indexer, which also reads them back as a later batch would.
 `test/model.test.ts` holds the standing and MRR rules to the shared and API originals when they are present.
 
 ## Query it
@@ -224,6 +239,28 @@ query Reports {
 }
 ```
 
+A merchant's pay-per-request meters, with their last settlements:
+
+```graphql
+query MerchantMeters($merchant: String!) {
+  Merchant(where: { address: { _eq: $merchant } }) {
+    meteredRevenue
+    meterSettlements
+    liveMeters
+    pastDueMeters
+    meters(order_by: { meterId: desc }) {
+      meterId
+      standing
+      totalCharged
+      maxTotal
+      expiresAt
+      payer { address }
+      settlements(order_by: { timestamp: desc }, limit: 5) { amount receiptTotal timestamp transactionHash }
+    }
+  }
+}
+```
+
 Past-due mandates across the network, and how far each is behind:
 
 ```graphql
@@ -251,6 +288,8 @@ Locally there is no GraphQL server, since Hasura runs only as a container, but t
 SELECT address, mrr, revenue, "activeMandates", "pastDueMandates", customers, "activeCustomers" FROM "Merchant";
 SELECT "mandateId", standing, "totalCharged", remaining, mrr FROM "Mandate" ORDER BY "mandateId";
 SELECT mandate_id, amount, trigger, report_id FROM "Charge" ORDER BY "blockNumber", "logIndex";
+SELECT "meterId", standing, "totalCharged", "settlementCount", "failureCount" FROM "Meter" ORDER BY "meterId";
+SELECT meter_id, amount, "receiptTotal", "transactionHash" FROM "MeterSettlement" ORDER BY "blockNumber", "logIndex";
 SELECT "assetSymbol", sum(amount) FROM "Charge"
   WHERE merchant_id = '10143-0x1e58ae7a5bfb164ff071dd5e71a1061a0e9097a1'
     AND timestamp >= extract(epoch FROM now()) - 2592000
@@ -283,6 +322,7 @@ The same steps work with the alpha `envio-cloud` CLI: `envio-cloud indexer add -
 | `ENVIO_API_TOKEN` | self-hosted | HyperSync access; `pnpm local` sets it from `HYPERSYNC_API_TOKEN`. Not needed on Envio Cloud. |
 | `ENVIO_PG_HOST`, `ENVIO_PG_PORT`, `ENVIO_PG_USER`, `ENVIO_PG_PASSWORD`, `ENVIO_PG_DATABASE` | self-hosted | The indexer's Postgres; `pnpm local` derives them from `DATABASE_URL`, database `weir_envio`. |
 | `ENVIO_HASURA` | self-hosted | `false` without Hasura; `pnpm local` sets it. |
+| `ENVIO_START_ARGS` | self-hosted | What `pnpm local` runs when given no arguments, `start` by default. Set it to `start -r` for one deploy after a change Envio cannot resume across (a new contract, a changed schema), then unset it. |
 | `ENVIO_RPC_URL_<chainId>` | anywhere | The RPC for block times and the fallback source; `pnpm local` sets it from `MONAD_RPC_URL`. Envio may log it, so use a URL with no key in it. |
 
 ## Layout
@@ -291,11 +331,12 @@ The same steps work with the alpha `envio-cloud` CLI: `envio-cloud indexer add -
 | --- | --- |
 | `config.yaml`, `abis/`, `src/networks.ts` | Generated by `scripts/sync.ts` from the deployment record and the ABIs; committed |
 | `schema.graphql` | The entities above |
-| `src/model.ts` | The rules, as pure functions: standing, MRR, commitment, resume, failure reasons, triggers, days |
-| `src/books.ts` | The aggregates one mandate feeds, opened, restated and closed together |
+| `src/model.ts` | The rules, as pure functions: standing, MRR, commitment, resume, failure reasons, triggers, days, and a meter's standing and period |
+| `src/books.ts` | The aggregates one mandate or one meter feeds, opened, restated and closed together |
 | `src/handlers/MandateHub.ts` | Mandates, charges, failures, pauses, cancellations, managers, nonces |
 | `src/handlers/MandateCharger.ts` | CRE reports and batch reverts |
-| `src/handlers/Sweep.ts`, `src/clock.ts` | The expiry sweep and the block time it needs |
+| `src/handlers/MandateMeter.ts` | Meters, settlements, failed settlements, cancellations, nonces |
+| `src/handlers/Sweep.ts`, `src/clock.ts` | The expiry sweep, for mandates and meters, and the block time it needs |
 | `scripts/local.ts`, `scripts/env.ts` | Running it locally without Docker |
 | `scripts/verify.ts` | The comparison with the chain, HyperSync and the API |
 | `test/` | The handler and model tests |
