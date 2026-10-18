@@ -1325,8 +1325,38 @@ button.link {
   fill: var(--accent);
 }
 
-.day-bar:hover {
+.day-group:hover .day-bar {
   fill: var(--accent-strong);
+}
+
+.day-bar.metered {
+  fill: color-mix(in srgb, var(--accent-bright) 70%, transparent);
+}
+
+.day-bar.metered.today {
+  fill: var(--accent-bright);
+}
+
+.day-group:hover .day-bar.metered {
+  fill: var(--accent);
+}
+
+.day-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.day-key-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.day-key-swatch.metered {
+  margin-left: 8px;
+  background: var(--accent-bright);
 }
 
 .day-chart figcaption {

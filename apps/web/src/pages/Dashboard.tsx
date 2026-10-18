@@ -344,7 +344,9 @@ function Revenue() {
   }, [auth]);
 
   if (analytics === null) return null;
-  const month = analytics?.days.reduce((sum, d) => sum + BigInt(d.volume), 0n);
+  // Subscriptions and pay per request together; the index keeps them apart, so they are added here.
+  const month = analytics?.days.reduce((sum, d) => sum + BigInt(d.volume) + BigInt(d.meteredVolume), 0n);
+  const metered = analytics?.metered;
   const charged = analytics?.triggers.reduce((sum, t) => sum + t.charges, 0) ?? 0;
   return (
     <section className="section">
@@ -365,7 +367,7 @@ function Revenue() {
               <dl className="revenue-facts">
                 <div>
                   <dt>All time</dt>
-                  <dd className="num">{money(BigInt(analytics.revenue))}</dd>
+                  <dd className="num">{money(BigInt(analytics.revenue) + BigInt(analytics.metered.revenue))}</dd>
                 </div>
                 <div>
                   <dt>Monthly recurring</dt>
@@ -377,6 +379,17 @@ function Revenue() {
                     {analytics.activeCustomers} <span className="muted">of {analytics.customers}</span>
                   </dd>
                 </div>
+                {metered !== undefined && metered.meters > 0 ? (
+                  <div>
+                    <dt>Pay per request</dt>
+                    <dd className="num">
+                      {moneyExact(BigInt(metered.revenue))}{" "}
+                      <span className="muted">
+                        {metered.liveMeters} of {metered.meters} live
+                      </span>
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
             <DayChart days={analytics.days} label="Revenue per day, last 30 days" />

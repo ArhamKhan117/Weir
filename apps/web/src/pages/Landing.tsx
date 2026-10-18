@@ -256,10 +256,11 @@ function NetworkLive() {
     };
   }, []);
   if (stats === undefined) return null;
+  // Subscriptions and pay per request together: the index counts them apart.
   const facts = [
-    { value: String(stats.mandates), label: "payments set up, all time" },
-    { value: money(BigInt(stats.volume)), label: "moved, payer to business" },
-    { value: String(stats.charges), label: "charges, none ever over a limit" },
+    { value: String(stats.mandates + stats.metered.meters), label: "payments set up, all time" },
+    { value: money(BigInt(stats.volume) + BigInt(stats.metered.volume)), label: "moved, payer to business" },
+    { value: String(stats.charges + stats.metered.settlements), label: "charges, none ever over a limit" },
     { value: String(stats.reports), label: "charged by Chainlink CRE reports" },
   ];
   return (

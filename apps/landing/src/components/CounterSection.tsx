@@ -11,8 +11,9 @@ import { GLOBE_VIDEO } from "../media";
 import { CurvedDivider } from "./CurvedDivider";
 import { LazyVideo } from "./LazyVideo";
 
-/** `nextMandateId()` on MandateHub. Ids start at 1, so the count is one less. */
+/** `nextMandateId()` on MandateHub and `nextMeterId()` on MandateMeter. Ids start at 1, so each count is one less. */
 const NEXT_MANDATE_ID_SELECTOR = "0x17cd54f2";
+const NEXT_METER_ID_SELECTOR = "0x261f10b3";
 
 /** Both networks Weir runs on, Mainnet first: the counter shows one at a time. */
 const NETWORKS = [
@@ -29,27 +30,33 @@ const STATS: { value: number; suffix: string; description: string }[] = [
 ];
 
 /**
- * How many mandates a network's hub has ever created, read straight from the contract with one
- * `eth_call`. A raw JSON-RPC request rather than a chain client, so the page carries no library for
- * one number. The figure is whatever the chain says, small or not; a failed read shows no number.
+ * How many mandates a network has ever set up: the hub's subscriptions and the meter's
+ * pay-per-request approvals, read straight from the contracts in one batched `eth_call` request.
+ * Raw JSON-RPC rather than a chain client, so the page carries no library for one number. The
+ * figure is whatever the chain says, small or not; a failed read shows no number.
  */
 async function readMandateCount(network: (typeof NETWORKS)[number]): Promise<number | undefined> {
   const deployment = deploymentFor(network.chainId);
   const rpc = network.chain.rpcUrls.default.http[0];
   if (deployment === undefined || rpc === undefined) return undefined;
+  const reads = [
+    { to: deployment.contracts.MandateHub, data: NEXT_MANDATE_ID_SELECTOR },
+    ...(deployment.contracts.MandateMeter === undefined ? [] : [{ to: deployment.contracts.MandateMeter, data: NEXT_METER_ID_SELECTOR }]),
+  ];
   const response = await fetch(rpc, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_call",
-      params: [{ to: deployment.contracts.MandateHub, data: NEXT_MANDATE_ID_SELECTOR }, "latest"],
-    }),
+    body: JSON.stringify(reads.map((call, id) => ({ jsonrpc: "2.0", id, method: "eth_call", params: [call, "latest"] }))),
   });
-  const body = (await response.json()) as { result?: unknown };
-  if (typeof body.result !== "string" || !/^0x[0-9a-f]+$/i.test(body.result)) return undefined;
-  return Math.max(0, Number(BigInt(body.result)) - 1);
+  const answers = (await response.json()) as { id?: unknown; result?: unknown }[];
+  if (!Array.isArray(answers)) return undefined;
+  let count = 0;
+  for (let id = 0; id < reads.length; id += 1) {
+    const result = answers.find((answer) => answer.id === id)?.result;
+    if (typeof result !== "string" || !/^0x[0-9a-f]+$/i.test(result)) return undefined;
+    count += Math.max(0, Number(BigInt(result)) - 1);
+  }
+  return count;
 }
 
 /** Ease-out cubic. Fast at the start, so the number feels like it lands. */
@@ -161,8 +168,8 @@ export function CounterSection() {
               </span>
 
               <p className="text-base text-[#18161B]/50 md:text-lg">
-                Mandates set up on {network?.name ?? "Monad"} so far, counted from the contract as
-                this page loaded
+                Mandates set up on {network?.name ?? "Monad"} so far, subscriptions and pay per
+                request alike, counted from the contracts as this page loaded
               </p>
             </>
           )}

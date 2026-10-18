@@ -347,7 +347,7 @@ One image (`Dockerfile`, `railway.json`, `.railwayignore`) runs the API or the k
 
 | Service | Image | Settings |
 | --- | --- | --- |
-| api-mainnet, api-testnet | `Dockerfile`, `WEIR_SERVICE=api` | that network's API values from `.env.mainnet` or `.env`, `DATABASE_URL` (its own database), `ENVIO_DATABASE_URL`, `API_ALLOWED_ORIGINS` set to the app and the website, `PUBLIC_API_URL` (its own public address, which x402 offers name as the facilitator), and for the paid demo `DEMO_PAY_TO`, `DEMO_PRICE`; `METER_SETTLE_MIN` and `METER_SETTLE_AFTER_SECONDS` tune settlement batches |
+| api-mainnet, api-testnet | `Dockerfile`, `WEIR_SERVICE=api` | that network's API values from `.env.mainnet` or `.env`, `DATABASE_URL` (its own database), `ENVIO_DATABASE_URL`, `API_ALLOWED_ORIGINS` set to the app and the website, `PUBLIC_API_URL` (its own public address, which x402 offers name as the facilitator), and for the paid demo `DEMO_PAY_TO`, `DEMO_PRICE`, and on Mainnet `DEMO_MAX_PAYERS` and `DEMO_GAS_RESERVE`, which cap the people it takes and keep it from spending gas real payments need; `METER_SETTLE_MIN` and `METER_SETTLE_AFTER_SECONDS` tune settlement batches |
 | keeper-mainnet, keeper-testnet | `Dockerfile`, `WEIR_SERVICE=keeper` | that network's keeper values |
 | envio | `apps/envio-indexer/Dockerfile` (`railway up apps/envio-indexer --path-as-root`) | `ENVIO_API_TOKEN`, `ENVIO_PG_*` for its own database |
 | Postgres | Railway's | one database per API and one for the indexer |

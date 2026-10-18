@@ -1,7 +1,8 @@
 /**
  * Analytics read from the Envio HyperIndex project (`apps/envio-indexer`), which indexes the hub
  * and the charger on every Monad network through HyperSync and keeps the aggregates a dashboard
- * wants: per merchant revenue, MRR and customers, per day volume, and what sent every charge.
+ * wants: per merchant revenue, MRR and customers, per day volume, and what sent every charge; and
+ * the meter beside them, whose pay-per-request settlements are kept apart from the mandate figures.
  *
  * HyperIndex writes them to its own Postgres database; this reads that database directly, read
  * only, the same tables Envio's GraphQL API serves. Ids carry the chain (`10143-0xabc…`) and every
@@ -26,20 +27,38 @@ export function windowDays(nowSeconds: number): { date: string; start: number }[
   });
 }
 
+export interface DayRow {
+  dayStart: string;
+  volume: string;
+  charges: number;
+  newMandates: number;
+  meteredVolume: string;
+  meterSettlements: number;
+}
+
 /** Rows summed per day into every day of the window, zero where nothing happened. */
-export function fillDays(rows: readonly { dayStart: string; volume: string; charges: number; newMandates: number }[], nowSeconds: number): IndexedDay[] {
-  const byDay = new Map<number, { volume: bigint; charges: number; newMandates: number }>();
+export function fillDays(rows: readonly DayRow[], nowSeconds: number): IndexedDay[] {
+  const byDay = new Map<number, { volume: bigint; charges: number; newMandates: number; meteredVolume: bigint; meterSettlements: number }>();
   for (const row of rows) {
     const key = Number(row.dayStart);
-    const day = byDay.get(key) ?? { volume: 0n, charges: 0, newMandates: 0 };
+    const day = byDay.get(key) ?? { volume: 0n, charges: 0, newMandates: 0, meteredVolume: 0n, meterSettlements: 0 };
     day.volume += BigInt(row.volume);
     day.charges += row.charges;
     day.newMandates += row.newMandates;
+    day.meteredVolume += BigInt(row.meteredVolume);
+    day.meterSettlements += row.meterSettlements;
     byDay.set(key, day);
   }
   return windowDays(nowSeconds).map(({ date, start }) => {
     const day = byDay.get(start);
-    return { date, volume: (day?.volume ?? 0n).toString(), charges: day?.charges ?? 0, newMandates: day?.newMandates ?? 0 };
+    return {
+      date,
+      volume: (day?.volume ?? 0n).toString(),
+      charges: day?.charges ?? 0,
+      newMandates: day?.newMandates ?? 0,
+      meteredVolume: (day?.meteredVolume ?? 0n).toString(),
+      meterSettlements: day?.meterSettlements ?? 0,
+    };
   });
 }
 
@@ -59,12 +78,28 @@ export class EnvioAnalytics {
     const ids = addresses.map((address) => `${chainId}-${address.toLowerCase()}`);
     const since = windowDays(nowSeconds)[0]?.start ?? 0;
     const [[totals], days, triggers] = await Promise.all([
-      this.sql<{ mrr: string | null; revenue: string | null; customers: number | null; active: number | null; charges: number | null; failures: number | null }[]>`
+      this.sql<
+        {
+          mrr: string | null;
+          revenue: string | null;
+          customers: number | null;
+          active: number | null;
+          charges: number | null;
+          failures: number | null;
+          metered: string | null;
+          settlements: number | null;
+          meters: number | null;
+          liveMeters: number | null;
+        }[]
+      >`
         SELECT sum("mrr")::text AS mrr, sum("revenue")::text AS revenue, sum("customers")::int AS customers,
-               sum("activeCustomers")::int AS active, sum("chargeCount")::int AS charges, sum("failureCount")::int AS failures
+               sum("activeCustomers")::int AS active, sum("chargeCount")::int AS charges, sum("failureCount")::int AS failures,
+               sum("meteredRevenue")::text AS metered, sum("meterSettlements")::int AS settlements,
+               sum("meterCount")::int AS meters, sum("liveMeters")::int AS "liveMeters"
         FROM "Merchant" WHERE id IN ${this.sql(ids)}`,
-      this.sql<{ dayStart: string; volume: string; charges: number; newMandates: number }[]>`
-        SELECT "dayStart"::text AS "dayStart", "volume"::text AS volume, "charges", "newMandates"
+      this.sql<DayRow[]>`
+        SELECT "dayStart"::text AS "dayStart", "volume"::text AS volume, "charges", "newMandates",
+               "meteredVolume"::text AS "meteredVolume", "meterSettlements"
         FROM "MerchantDailyStat" WHERE merchant_id IN ${this.sql(ids)} AND "dayStart" >= ${since}`,
       this.sql<{ trigger: ChargeTrigger; charges: number; volume: string }[]>`
         SELECT "trigger", count(*)::int AS charges, sum("amount")::text AS volume
@@ -80,6 +115,12 @@ export class EnvioAnalytics {
       failures: totals?.failures ?? 0,
       days: fillDays(days, nowSeconds),
       triggers,
+      metered: {
+        revenue: totals?.metered ?? "0",
+        settlements: totals?.settlements ?? 0,
+        meters: totals?.meters ?? 0,
+        liveMeters: totals?.liveMeters ?? 0,
+      },
     };
   }
 
@@ -98,12 +139,19 @@ export class EnvioAnalytics {
           volume: string;
           mrr: string;
           reportCount: number;
+          meterCount: number;
+          liveMeters: number;
+          meterPayerCount: number;
+          meterSettlementCount: number;
+          meteredVolume: string;
         }[]
       >`SELECT "chainId", "mandateCount", "liveMandates", "payerCount", "merchantCount", "chargeCount",
-               "volume"::text AS volume, "mrr"::text AS mrr, "reportCount"
+               "volume"::text AS volume, "mrr"::text AS mrr, "reportCount", "meterCount", "liveMeters",
+               "meterPayerCount", "meterSettlementCount", "meteredVolume"::text AS "meteredVolume"
         FROM "Network" ORDER BY "chainId"`,
-      this.sql<{ chainId: number; dayStart: string; volume: string; charges: number; newMandates: number }[]>`
-        SELECT "chainId", "dayStart"::text AS "dayStart", "volume"::text AS volume, "charges", "newMandates"
+      this.sql<(DayRow & { chainId: number })[]>`
+        SELECT "chainId", "dayStart"::text AS "dayStart", "volume"::text AS volume, "charges", "newMandates",
+               "meteredVolume"::text AS "meteredVolume", "meterSettlements"
         FROM "DailyStat" WHERE "dayStart" >= ${since}`,
     ]);
     return networks.map((n) => ({
@@ -116,6 +164,7 @@ export class EnvioAnalytics {
       volume: n.volume,
       mrr: n.mrr,
       reports: n.reportCount,
+      metered: { meters: n.meterCount, liveMeters: n.liveMeters, payers: n.meterPayerCount, settlements: n.meterSettlementCount, volume: n.meteredVolume },
       days: fillDays(
         days.filter((d) => d.chainId === n.chainId),
         nowSeconds,

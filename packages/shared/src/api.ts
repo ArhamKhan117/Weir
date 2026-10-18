@@ -557,10 +557,13 @@ export interface PayoutResponse {
 export interface IndexedDay {
   /** YYYY-MM-DD. */
   date: string;
-  /** Base units charged that day. */
+  /** Base units charged that day by mandates. */
   volume: Units;
   charges: number;
   newMandates: number;
+  /** Base units settled that day through pay-per-request meters, beside `volume`. */
+  meteredVolume: Units;
+  meterSettlements: number;
 }
 
 export type ChargeTrigger = "Cre" | "Keeper" | "Direct" | "Settlement";
@@ -581,6 +584,8 @@ export interface MerchantAnalytics {
   days: IndexedDay[];
   /** What sent its charges: a Chainlink CRE report, the keeper, a direct call, or a stream settling. */
   triggers: { trigger: ChargeTrigger; charges: number; volume: Units }[];
+  /** Pay per request, kept apart from the mandate figures above: settled on chain, all time. */
+  metered: { revenue: Units; settlements: number; meters: number; liveMeters: number };
 }
 
 /** One network's totals, from Envio HyperIndex. */
@@ -595,6 +600,8 @@ export interface NetworkStats {
   mrr: Units;
   /** Chainlink CRE reports the charger has received. */
   reports: number;
+  /** Pay per request, kept apart from the mandate figures above. */
+  metered: { meters: number; liveMeters: number; payers: number; settlements: number; volume: Units };
   days: IndexedDay[];
 }
 
