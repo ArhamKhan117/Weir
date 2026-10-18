@@ -1330,15 +1330,15 @@ button.link {
 }
 
 .day-bar.metered {
-  fill: color-mix(in srgb, var(--accent-bright) 70%, transparent);
+  fill: color-mix(in srgb, var(--ink) 45%, transparent);
 }
 
 .day-bar.metered.today {
-  fill: var(--accent-bright);
+  fill: color-mix(in srgb, var(--ink) 75%, transparent);
 }
 
 .day-group:hover .day-bar.metered {
-  fill: var(--accent);
+  fill: var(--ink);
 }
 
 .day-key {
@@ -1351,12 +1351,12 @@ button.link {
   width: 8px;
   height: 8px;
   border-radius: 2px;
-  background: var(--accent);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .day-key-swatch.metered {
   margin-left: 8px;
-  background: var(--accent-bright);
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
 }
 
 .day-chart figcaption {
