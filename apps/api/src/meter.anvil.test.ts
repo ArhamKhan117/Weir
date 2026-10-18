@@ -124,7 +124,8 @@ describe.skipIf(!enabled || db === undefined)("pay-per-request on a local node",
         // The test drives the settler itself.
         settlePollMs: 3_600_000,
         publicUrl: base,
-        demo: { payTo: merchant.address, price: PRICE, rates: async () => ({ PKR: 278.5, EUR: 0.92 }) },
+        // One person may try the demo, and only while the relayer holds at least a wei.
+        demo: { payTo: merchant.address, price: PRICE, maxPayers: 1, gasReserve: 1n, rates: async () => ({ PKR: 278.5, EUR: 0.92 }) },
       },
     });
     service.start();
@@ -317,4 +318,28 @@ describe.skipIf(!enabled || db === undefined)("pay-per-request on a local node",
     expect(events.map((event) => event.type)).toEqual(["meter.created", "meter.settled", "meter.cancelled"]);
     expect(events[1]?.data.event).toMatchObject({ amount: "5000", totalCharged: "5000", receiptTotal: "5000" });
   }, 30_000);
+
+  it("takes no more people than the demo allows, before anything is sent, but lets one of them approve again", async () => {
+    const install = async (who: typeof payer) => {
+      const now = Math.floor(Date.now() / 1000);
+      const terms = { merchant: merchant.address, asset: weir.token, manager: session.address, periodCap: 5_000n, period: 3_600, maxTotal: 8_000n, expiresAt: BigInt(now + 86_400), ref: refFromString("demo-fx") };
+      const nonce = randomNonce();
+      const signature = await who.signTypedData(
+        meterAuthorizationTypedData({ domain: meterDomain({ name: "Weir", chainId: anvil.id, address: weir.meter }), payer: who.address, terms, nonce, deadline: BigInt(now + 600) }),
+      );
+      return call<InstallMeterResponse & { error?: { code: string; message: string } }>("/v1/relay/meter", {
+        body: { payer: who.address, terms: { ...terms, periodCap: "5000", maxTotal: "8000", expiresAt: Number(terms.expiresAt) }, nonce: nonce.toString(), deadline: now + 600, signature },
+      });
+    };
+    const before = await node.publicClient.getTransactionCount({ address: anvilAccount(1).address });
+    const second = await install(privateKeyToAccount(generatePrivateKey()));
+    expect(second.status).toBe(403);
+    expect(second.body.error).toEqual({ code: "limit_reached", message: "The demo was for the first 1 person, and they have tried it." });
+    expect(await node.publicClient.getTransactionCount({ address: anvilAccount(1).address })).toBe(before);
+
+    // The first person is already counted. Their allowance still covers the new meter, so it needs no permit.
+    const again = await install(payer);
+    expect(again.status).toBe(200);
+    expect(again.body.meterId).toBe("2");
+  });
 });

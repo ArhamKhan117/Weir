@@ -143,6 +143,8 @@ async function main(): Promise<void> {
   check(offer.chainId === chainId && getAddress(offer.meter) === getAddress(meterAddress), "the offer names this network's meter");
   check(required.resource.url === demo, `the offer names the public URL (${required.resource.url})`);
   log("offer", `${formatDollarsExact(offer.price)} a request in ${offer.asset}, paid to ${offer.payTo}, facilitator ${offer.facilitator}`);
+  // Paying itself would move nothing, so the balance checks below could prove nothing.
+  check(getAddress(offer.payTo) !== payer.address, "the payer is not the demo's payee; pick another LIVE_PAYER_KEY_FILE");
 
   if (chainId === 10143) {
     const granted = await api<FaucetResponse>("POST", API_ROUTES.faucet, { address: payer.address });

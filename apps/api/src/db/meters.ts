@@ -207,6 +207,15 @@ export class MeterStore {
     });
   }
 
+  /** How many people have opened a meter paying `merchant` here, and whether `payer` is one of them. */
+  async payersOf(merchant: Address, payer: Address): Promise<{ people: number; known: boolean }> {
+    const [row] = await this.sql<{ people: string; known: boolean }[]>`
+      SELECT count(DISTINCT lower(payer)) AS people, coalesce(bool_or(lower(payer) = ${payer.toLowerCase()}), false) AS known
+      FROM meters
+      WHERE chain_id = ${this.scope.chainId} AND meter = ${this.scope.meter} AND lower(merchant) = ${merchant.toLowerCase()}`;
+    return { people: Number(row?.people ?? 0), known: row?.known ?? false };
+  }
+
   /** The accepted total and period usage, to check a new receipt against. */
   async usage(id: bigint): Promise<{ total: bigint; periodStart: number; periodUsed: bigint } | undefined> {
     const rows = await this.sql<{ total: string; period_start: string; period_used: string }[]>`

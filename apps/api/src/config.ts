@@ -25,7 +25,7 @@ import {
   type Secret,
   type SecretEnvVar,
 } from "@weir/shared";
-import { getAddress, isAddress, type Address } from "viem";
+import { getAddress, isAddress, parseEther, type Address } from "viem";
 
 /** `TestStablecoin.MAX_MINT`: the most one `mint` may create. */
 export const TEST_STABLECOIN_MAX_MINT = 10_000_000_000n;
@@ -57,8 +57,12 @@ export interface ApiConfig {
     settleAfterSeconds: number;
     /** This API's public base URL: the facilitator payers are told about. */
     publicUrl?: string;
-    /** The demo FX API, paying `payTo` `price` base units a request. */
-    demo?: { payTo: Address; price: bigint };
+    /**
+     * The demo FX API, paying `payTo` `price` base units a request. On Mainnet each person who
+     * tries it costs the relayer gas, so it can take at most `maxPayers` people, and none while the
+     * relayer holds less than `gasReserve` wei.
+     */
+    demo?: { payTo: Address; price: bigint; maxPayers?: number; gasReserve?: bigint };
   };
   /** Why an optional group is off, for the startup log. Never carries a value. */
   notes: string[];
@@ -200,10 +204,22 @@ function readMeters(env: EnvSource): ApiConfig["meters"] {
   if (payTo !== undefined && !isAddress(payTo, { strict: false })) throw new InvalidEnvVarError("DEMO_PAY_TO", "an address");
   const price = optionalEnv("DEMO_PRICE", env);
   if (price !== undefined && !/^[1-9]\d{0,20}$/.test(price)) throw new InvalidEnvVarError("DEMO_PRICE", "base units, a positive integer");
+  const maxPayers = optionalEnvInteger("DEMO_MAX_PAYERS", env, { min: 1, max: 1_000_000 });
+  const reserve = optionalEnv("DEMO_GAS_RESERVE", env);
+  if (reserve !== undefined && !/^\d{1,9}(\.\d{1,18})?$/.test(reserve)) throw new InvalidEnvVarError("DEMO_GAS_RESERVE", "MON, such as 0.5");
   return {
     settleMin: BigInt(settleMin ?? "100000"),
     settleAfterSeconds: optionalEnvInteger("METER_SETTLE_AFTER_SECONDS", env, { min: 10, max: 86_400 }) ?? 600,
     ...(publicUrl === undefined ? {} : { publicUrl }),
-    ...(publicUrl === undefined || payTo === undefined ? {} : { demo: { payTo: getAddress(payTo), price: BigInt(price ?? "1000") } }),
+    ...(publicUrl === undefined || payTo === undefined
+      ? {}
+      : {
+          demo: {
+            payTo: getAddress(payTo),
+            price: BigInt(price ?? "1000"),
+            ...(maxPayers === undefined ? {} : { maxPayers }),
+            ...(reserve === undefined ? {} : { gasReserve: parseEther(reserve) }),
+          },
+        }),
   };
 }

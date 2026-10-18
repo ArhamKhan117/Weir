@@ -644,6 +644,7 @@ export type ApiErrorCode =
   | "rate_limited"
   | "rejected_on_chain"
   | "not_configured"
+  | "limit_reached"
   | "internal";
 
 export interface ApiError {

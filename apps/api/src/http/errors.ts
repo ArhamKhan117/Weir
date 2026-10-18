@@ -33,6 +33,9 @@ export const notFound = (message: string): ApiHttpError => new ApiHttpError(404,
 
 export const notConfigured = (message: string): ApiHttpError => new ApiHttpError(503, "not_configured", message);
 
+/** A limit this API keeps on purpose, such as the paid demo's number of people, has been reached. */
+export const limitReached = (message: string): ApiHttpError => new ApiHttpError(403, "limit_reached", message);
+
 export const rejectedOnChain = (message: string): ApiHttpError => new ApiHttpError(422, "rejected_on_chain", message);
 
 /** `retry-after` is whole seconds, at least one, so a client never retries in a tight loop. */

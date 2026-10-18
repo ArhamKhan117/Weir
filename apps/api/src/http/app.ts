@@ -163,6 +163,8 @@ export interface AppDeps {
   meters?: { store: MeterStore; facilitator: Facilitator };
   /** A paid demo endpoint behind the `weir-meter` paywall, mounted at `/demo`. */
   demo?: Hono;
+  /** Checked before a meter install is relayed; throws to refuse it (the demo's limits). */
+  meterGate?: (meter: { payer: Address; merchant: Address }) => Promise<void>;
 }
 
 /** The socket's peer. Forwarded headers are not trusted: anyone can send them. */
@@ -371,6 +373,7 @@ export function createApp(deps: AppDeps): Hono {
     limit(limits.relayPerIp, clientIp(c), "relay requests from this client");
     const input = parseMeterInstall(await readJson(c), nowSeconds());
     const relay = requireRelay();
+    await deps.meterGate?.({ payer: input.payer, merchant: input.terms.merchant });
     try {
       return c.json(await relay.installMeter(input, () => limit(limits.installPerPayer, input.payer, "installs for this payer")));
     } catch (error) {

@@ -10,7 +10,9 @@
 
 import { createPaywall, type SuggestedTerms } from "@weir/x402";
 import { Hono } from "hono";
-import type { Address } from "viem";
+import { isAddressEqual, type Address } from "viem";
+
+import { limitReached } from "../http/errors.js";
 
 const RATES_URL = "https://open.er-api.com/v6/latest/USD";
 const RATES_TTL_MS = 10 * 60_000;
@@ -31,6 +33,39 @@ export interface DemoOptions {
   fetch: typeof fetch;
   /** Today's rates against the dollar; open.er-api.com by default. */
   rates?: () => Promise<Record<string, number>>;
+}
+
+export interface DemoGateOptions {
+  payTo: Address;
+  /** At most this many people may open a meter paying the demo. */
+  maxPayers?: number;
+  /** No new meter while the relayer holds less than this, in wei. */
+  gasReserve?: bigint;
+  /** How many people already pay the demo, and whether this payer is one of them. */
+  payers: (payer: Address) => Promise<{ people: number; known: boolean }>;
+  relayerBalance: () => Promise<bigint>;
+  /** Where else to try it, appended to a refusal. */
+  elsewhere?: string;
+}
+
+/**
+ * Whether a meter may be opened, checked before the relayer sends anything. Only meters paying the
+ * demo are limited: each costs the relayer gas to open, settle and stop, so on Mainnet the demo
+ * takes a fixed number of people, and pauses before it could spend gas real payments need. A
+ * person already counted may approve again.
+ */
+export function createDemoGate(options: DemoGateOptions): (meter: { payer: Address; merchant: Address }) => Promise<void> {
+  const after = options.elsewhere === undefined ? "" : ` ${options.elsewhere}`;
+  return async ({ payer, merchant }) => {
+    if (!isAddressEqual(merchant, options.payTo)) return;
+    if (options.maxPayers !== undefined) {
+      const { people, known } = await options.payers(payer);
+      if (!known && people >= options.maxPayers) throw limitReached(`The demo was for the first ${options.maxPayers} ${options.maxPayers === 1 ? "person" : "people"}, and they have tried it.${after}`);
+    }
+    if (options.gasReserve !== undefined && (await options.relayerBalance()) < options.gasReserve) {
+      throw limitReached(`The demo is paused for now.${after}`);
+    }
+  };
 }
 
 export function createDemo(options: DemoOptions): Hono {

@@ -25,7 +25,7 @@ import { RelayService, type StreamReader } from "./relay/service.js";
 import { createViemRelayChain } from "./relay/viemChain.js";
 import { ReminderWorker } from "./push/reminders.js";
 import { MeterStore } from "./db/meters.js";
-import { createDemo } from "./demo/fx.js";
+import { createDemo, createDemoGate } from "./demo/fx.js";
 import { chainFunds, Facilitator } from "./domain/facilitator.js";
 import { createMeterReader, METER_TOPICS, meterTrack } from "./indexer/meter.js";
 import { MeterSettler } from "./meters/settler.js";
@@ -68,7 +68,7 @@ export interface ApiServiceOptions {
     settleAfterSeconds: number;
     settlePollMs?: number;
     publicUrl?: string;
-    demo?: { payTo: Address; price: bigint; rates?: () => Promise<Record<string, number>> };
+    demo?: { payTo: Address; price: bigint; maxPayers?: number; gasReserve?: bigint; rates?: () => Promise<Record<string, number>> };
   };
 }
 
@@ -288,8 +288,11 @@ export function createApiService(options: ApiServiceOptions): ApiService {
           asset: demoAsset,
           price: demoOptions.price,
           ...(demoOptions.rates === undefined ? {} : { rates: demoOptions.rates }),
-          // A dollar a day, five in all, for thirty days: plenty for trying it, little at risk.
-          suggested: { periodCap: 1_000_000n, period: 86_400, maxTotal: 5_000_000n, termSeconds: 30 * 86_400 },
+          // Plenty for trying it, little at risk: ten cents a day and a dollar in all on Mainnet, where
+          // the money is real; a dollar a day and five in all on Testnet. Thirty days either way.
+          suggested: network.mainnet
+            ? { periodCap: 100_000n, period: 86_400, maxTotal: 1_000_000n, termSeconds: 30 * 86_400 }
+            : { periodCap: 1_000_000n, period: 86_400, maxTotal: 5_000_000n, termSeconds: 30 * 86_400 },
           fetch: async (input, init) => {
             const request = new Request(input, init);
             if (mounted.app !== undefined && request.url.startsWith(`${publicUrl}/`)) {
@@ -300,12 +303,28 @@ export function createApiService(options: ApiServiceOptions): ApiService {
           },
         })
       : undefined;
+  const demoGate =
+    demo !== undefined && demoOptions !== undefined && meterStore !== undefined && relay !== undefined
+      ? (() => {
+          const store = meterStore;
+          const relayer = relay.address;
+          return createDemoGate({
+            payTo: demoOptions.payTo,
+            ...(demoOptions.maxPayers === undefined ? {} : { maxPayers: demoOptions.maxPayers }),
+            ...(demoOptions.gasReserve === undefined ? {} : { gasReserve: demoOptions.gasReserve }),
+            payers: (payer) => store.payersOf(demoOptions.payTo, payer),
+            relayerBalance: () => publicClient.getBalance({ address: relayer }),
+            ...(network.mainnet ? { elsewhere: "Try it free on Testnet: switch networks at the top of the app." } : {}),
+          });
+        })()
+      : undefined;
 
   const app = createApp({
     network,
     store,
     ...(meterStore === undefined || facilitator === undefined ? {} : { meters: { store: meterStore, facilitator } }),
     ...(demo === undefined ? {} : { demo }),
+    ...(demoGate === undefined ? {} : { meterGate: demoGate }),
     ...(relay === undefined ? {} : { relay }),
     auth: createMerchantAuth({
       devAuth: options.devAuth,

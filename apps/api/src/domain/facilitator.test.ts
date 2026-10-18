@@ -186,6 +186,13 @@ describe.skipIf(db === undefined)("the weir-meter facilitator", () => {
     expect(await facilitator.verify(mismatched)).toMatchObject({ isValid: false, invalidReason: METER_REASONS.malformed });
   });
 
+  it("counts the people paying a merchant, each once", async () => {
+    await insertMeter({ id: 2, status: "Cancelled", closedAt: now - 1 });
+    expect(await store.payersOf(MERCHANT, payer.address)).toEqual({ people: 1, known: true });
+    expect(await store.payersOf(MERCHANT, session.address)).toEqual({ people: 1, known: false });
+    expect(await store.payersOf(getAddress("0x00000000000000000000000000000000000000c9"), payer.address)).toEqual({ people: 0, known: false });
+  });
+
   it("finds a key's open meters for a payee, newest first", async () => {
     await insertMeter({ id: 2, status: "Cancelled", closedAt: now - 1 });
     const meters = await store.forSigner(session.address, MERCHANT, ASSET, now);
