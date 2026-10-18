@@ -140,6 +140,11 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
     [mandates],
   );
   const ended = useMemo(() => mandates.filter((m) => !live.includes(m)), [mandates, live]);
+  // Pay-per-request approvals still able to pay count as active too.
+  const openMeters = useMemo(() => {
+    const now = Math.floor(Date.now() / 1000);
+    return (data?.meters ?? []).filter((m) => m.status !== "Cancelled" && m.expiresAt > now).length;
+  }, [data]);
 
   const applied = useCallback(
     (id: string, action: MandateAction) => {
@@ -178,7 +183,7 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
       <div className="stats rise" style={at(1)}>
         <div className="card stat">
           <div className="stat-label">Active</div>
-          <div className="stat-value num">{data === undefined ? <Skeleton width={40} height={28} /> : live.length}</div>
+          <div className="stat-value num">{data === undefined ? <Skeleton width={40} height={28} /> : live.length + openMeters}</div>
         </div>
         <div className="card stat">
           <div className="stat-label">Committed each month</div>
