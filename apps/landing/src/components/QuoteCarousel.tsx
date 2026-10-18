@@ -46,9 +46,9 @@ const QUOTES: {
   },
   {
     quote:
-      "Let an agent subscribe for you inside a limit it cannot pass. It signs; it never holds a cent of your money.",
+      "Let an agent subscribe, or pay an API by the request, inside limits it cannot pass. It signs; it never holds your money.",
     role: "AI agents",
-    detail: "A MetaMask Agent Wallet plugin",
+    detail: "Agent Wallet and x402",
     icon: Bot,
   },
   {

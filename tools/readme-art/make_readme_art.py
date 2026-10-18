@@ -534,10 +534,10 @@ def figure_architecture(p: Palette) -> Image.Image:
         Card("Payers", kicker="App", body="Checkout, Your payments, savings, reminders. Installable on a phone."),
         Card("Families", kicker="App", body="One support link, every relative gives on their own, in the recipient's currency."),
         Card("Businesses", kicker="Dashboard", body="Plans, webhooks, revenue from Envio, payouts signed by their Privy wallet."),
-        Card("AI agents", kicker="Agent plugin", body="A MetaMask Agent Wallet subscribes and manages its payments by signing."),
+        Card("AI agents", kicker="Agent plugin and x402", body="Subscribe, or pay an API per request, by signing: no transaction per call."),
     ]
     services = [
-        Card("API and relayer", kicker="Railway", body="Decodes every call against an allowlist, bundles installs, pays the gas, indexes with HyperSync."),
+        Card("API and relayer", kicker="Railway", body="Decodes every call against an allowlist, pays the gas, indexes with HyperSync, and is the x402 facilitator."),
         Card("Keeper", kicker="Railway", body="Finds what is due every few seconds and charges it in batches, with tight gas."),
         Card("Chainlink CRE", kicker="Workflow", body="Consensus reads, then one DON-signed report to the charger."),
         Card("Envio HyperIndex", kicker="Indexer", body="Revenue, MRR and daily volume per network, served as GraphQL."),
@@ -550,10 +550,12 @@ def figure_architecture(p: Palette) -> Image.Image:
              items=[Item("0xC555DBb7…CFf03", mono=True)]),
         Card("SavingsRouter", kicker="Contract", body="Moves a payer's dollars into or out of a Morpho vault on their permit.",
              items=[Item("0x9eE63583…0295", mono=True)]),
+        Card("MandateMeter", kicker="Contract", body="Pay per request: signed running totals, settled in batches, under caps.",
+             items=[Item("0x46740BEC…8862", mono=True)]),
     ]
     built = Card("Built with", style="soft", pills=["USDC", "AUSD by Agora", "Morpho vaults", "Mera passkeys", "Privy",
                                                      "Chainlink CRE and Data Feeds", "Envio HyperIndex and HyperSync",
-                                                     "Aurora Intents", "MetaMask Agent Wallet", "Multicall3"])
+                                                     "Aurora Intents", "MetaMask Agent Wallet", "x402", "Multicall3"])
     head_ops, top = header("Architecture", "Signatures in, dollars out.",
                            "People only ever sign. Weir's services relay, charge and index; the contracts on Monad hold every rule.", p)
     span = px(WIDTH - PAD * 2)

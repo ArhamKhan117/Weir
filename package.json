@@ -18,6 +18,7 @@
     "keeper:mainnet": "tsx --env-file=.env.mainnet apps/keeper/src/index.ts",
     "smoke": "tsx --env-file=.env scripts/smoke.ts",
     "live:mainnet": "tsx --env-file=.env.mainnet scripts/mainnet-live.ts",
+    "live:x402": "tsx scripts/x402-live.ts",
     "api": "pnpm --filter @weir/api start",
     "api:mainnet": "pnpm --filter @weir/api start:mainnet",
     "landing": "pnpm --filter @weir/landing dev",

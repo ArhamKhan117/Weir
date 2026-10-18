@@ -30,7 +30,7 @@
 **Direct debit for digital dollars, live on Monad Mainnet.**
 Built for [Monad Metropolis](https://monad.xyz/developers/hackathons/metropolis), Track 02: Consumer Products & Payments, by arhamkhan.
 
-Say yes once to a subscription, a meter that bills by the second, or a weekly payment to family abroad.
+Say yes once to a subscription, a meter that bills by the second, a weekly payment to family abroad, or an API your agent pays by the request.
 Your money stays in your own account, earning, until the moment each charge is due.
 Either side can stop it in one tap.
 
@@ -60,6 +60,7 @@ Full quality, to watch or download: [weirpay.vercel.app/videos](https://weirpay.
 [Proven on Mainnet](#proven-on-mainnet) ·
 [Who it is for](#who-it-is-for) ·
 [The mandate](#the-mandate) ·
+[Pay per request](#pay-per-request-x402) ·
 [Architecture](#architecture) ·
 [Built on Monad](#built-on-monad) ·
 [Safety](#safety) ·
@@ -79,6 +80,7 @@ Banks solved this long ago with the direct debit mandate: a standing yes, capped
 | No wallet app, no gas token | A passkey (Face ID or a fingerprint) signs; a relayer pays the gas |
 | A stop button that always works | One tap pauses or cancels on chain, with nobody's permission |
 | Billing by the second | Monad's sub-second blocks make per-second streams practical |
+| Paying APIs by the request | Over x402: approve an API once, then each request is a signature, settled on chain in batches |
 
 ## How a payment works
 
@@ -108,6 +110,7 @@ A keeper charges what is due on each network every few seconds, and the Envio Hy
 | MandateHub | [`0x184c…EcA0`](https://monadvision.com/address/0x184c6c26C1cB7f79885ED7c71e810E564CEec6a0) | [`0x08ca…0Bc1`](https://testnet.monadvision.com/address/0x08ca57f960D5D9A2b06475C6Ca4583eDa4680Bc1) |
 | MandateCharger | [`0xC555…CFf03`](https://monadvision.com/address/0xC555DBb7059B46fa4D3de4b6602E3c52cacCFf03) | [`0xB433…9E03`](https://testnet.monadvision.com/address/0xB4333c519c9D5c300737824ca5792891DBBa9E03) |
 | SavingsRouter | [`0x9eE6…0295`](https://monadvision.com/address/0x9eE63583406589Fc6701dF53182Ed4E59A180295) | [`0x41dC…A46E`](https://testnet.monadvision.com/address/0x41dC6AE1e9939ACFd73d64e114Ee48711AB4A46E) |
+| MandateMeter | [`0x4674…8862`](https://monadvision.com/address/0x46740BECd71B4F71d7C1550c73E74839791c8862) | [`0x75a6…7a36`](https://testnet.monadvision.com/address/0x75a6385f9BE0dCb12693b0807DB6244B4A947a36) |
 | Dollars | USDC, AUSD | tAUSD (open faucet), USDC |
 | Savings | Morpho USDC and AUSD vaults | a test vault paying a simulated 5% |
 
@@ -148,7 +151,8 @@ None of them sees a seed phrase, a gas token or a wallet extension; they see a c
 - **Support family across borders.** One person shares a link with their country on it; each relative gives every month or sends once, in seconds, and sees what it is worth there ("$50 ≈ Rs 13,875").
 - **Run a business.** Create plans, prove the wallet you get paid to, watch revenue arrive, and send your earnings on from your Privy wallet with no gas.
 - **Install it.** Weir adds to a phone's home screen and opens like an app.
-- **Let an agent pay.** `mm weir` lets a MetaMask Agent Wallet subscribe and manage its payments by signing alone.
+- **Pay for an API by the request.** Approve it once with a passkey and limits you choose; each request after that is paid with no prompt and no gas.
+- **Let an agent pay.** `mm weir` lets a MetaMask Agent Wallet subscribe, pay APIs per request over x402, and manage its payments by signing alone.
 
 ## The mandate
 
@@ -177,21 +181,61 @@ The same passkey, asked at a second PRF salt of Weir's own, gives a key that doe
 `charge(id)` is permissionless: Weir's keeper, a Chainlink CRE workflow, the merchant or the payer.
 A charge the payer cannot fund moves nothing; the mandate is marked past due and retried.
 
+## Pay per request (x402)
+
+An API can charge per request with Weir, over [x402](https://www.x402.org) V2, the HTTP 402 payment standard.
+An unpaid request gets a `402 Payment Required` offering the `weir-meter` scheme: who is paid, in what, and one request's price.
+
+1. **Approve once.** The payer signs a permit and the meter's terms: at most so much a day and so much in all, until a date, paying this API only.
+   Weir's relayer opens it on `MandateMeter` in one transaction.
+2. **Pay each request with a signature.** The client signs a usage receipt for the new running total, `previous + price`, with its session key: no prompt, no transaction, no gas.
+   Weir's API, the facilitator, checks the signature, the exact total, both caps and the payer's funds before the API does any work, and records it.
+3. **Settle in batches.** Anyone may call `settle` with the latest receipt; Weir's settler does once the total is worth a transaction.
+   The meter pays the merchant what the receipt adds, never past a cap, straight from the payer's balance.
+4. **Stop any time.** The session key cancels in one signature; receipts signed before the stop are still honoured, and nothing after it.
+
+```ts
+import { createMeterFetch, createPaywall, weirMeter } from "@weir/x402";
+
+// An API: charge a tenth of a cent a request, paid to your wallet in USDC on Monad Mainnet.
+const paywall = createPaywall({ ...weirMeter(143), payTo, asset: USDC, price: 1_000n });
+export default { fetch: (request: Request) => paywall(request, handler) };
+
+// A client: pay any weir-meter API it has a meter with, up to a cent a request.
+const pay = createMeterFetch({ signer: sessionKey, maxPrice: 10_000n });
+const answer = await pay("https://api.example/quote");
+```
+
+Each API has a demo: `GET /demo/fx?to=PKR` on either network's API answers today's dollar rate for $0.001.
+In the app, **Pay per request** approves it and calls it; an agent does the same with `mm weir approve` and `mm weir fetch`.
+After the first request a client pays up front, so a paid request is one round trip, and the facilitator answers it in about 25 ms.
+
+**Proven on Mainnet.**
+On 18 October 2026, `pnpm live:x402 --network mainnet --calls 20` paid the demo with real USDC.
+
+| Step | Transaction |
+| --- | --- |
+| Approve: permit and meter terms, one relayed transaction | [`0x5cba66dd…`](https://monadvision.com/tx/0x5cba66dd95ad2bbecb63c921120d5406d5976caa3c1d5eadd40a1431f22fb050) |
+| 20 paid requests, signed by the session key | none: no transaction per request |
+| The 21st refused at the daily cap | none: refused before the API ran |
+| Settle the $0.02 running total | [`0x13f75883…`](https://monadvision.com/tx/0x13f75883ee4c483602d04c9a2747a7e30f001ca5e41cfb7329c5421ec38becd7) |
+| Stop, signed by the session key | [`0x120028d9…`](https://monadvision.com/tx/0x120028d995752f01ef3cd58957f1ffa313514e72e8e9bf3a90b4f7e7f7d2e3da) |
+
 ## Architecture
 
 <p align="center">
-  <img src="assets/readme/architecture.png" alt="Architecture. Payers, families, businesses and AI agents only sign. Weir's API and relayer, the keeper, a Chainlink CRE workflow and an Envio HyperIndex indexer relay, charge and index, one allowlisted transaction at a time. The contracts on Monad, MandateHub, MandateCharger and SavingsRouter, hold every rule." width="100%">
+  <img src="assets/readme/architecture.png" alt="Architecture. Payers, families, businesses and AI agents only sign. Weir's API and relayer, the keeper, a Chainlink CRE workflow and an Envio HyperIndex indexer relay, charge and index, one allowlisted transaction at a time. Weir's API is also the x402 facilitator. The contracts on Monad, MandateHub, MandateCharger, SavingsRouter and MandateMeter, hold every rule." width="100%">
 </p>
 
-- **Contracts** (`src/`): `MandateHub` holds every mandate and moves money only from payer to merchant; `MandateCharger` charges many at once and takes Chainlink CRE reports; `SavingsRouter` moves a payer's dollars in and out of savings on a permit. No owner, no fee, no upgrade.
-- **API** (`apps/api`): relays signed installs and actions so the payer never pays gas, serves plans, merchants and family support, and keeps an index of every mandate and charge, caught up with HyperSync.
+- **Contracts** (`src/`): `MandateHub` holds every mandate and moves money only from payer to merchant; `MandateCharger` charges many at once and takes Chainlink CRE reports; `SavingsRouter` moves a payer's dollars in and out of savings on a permit; `MandateMeter` holds pay-per-request approvals and settles their signed running totals. No owner, no fee, no upgrade.
+- **API** (`apps/api`): relays signed installs and actions so the payer never pays gas, serves plans, merchants and family support, keeps an index of every mandate, meter and charge, caught up with HyperSync, and is the x402 facilitator that verifies each paid request and settles them in batches.
 - **Keeper** (`apps/keeper`) and **CRE workflow** (`apps/cre-keeper`): two independent ways to charge what is due; anyone else may charge too.
-- **Indexer** (`apps/envio-indexer`): Envio HyperIndex aggregates both networks into revenue, MRR and daily volume for the dashboard and the website.
+- **Indexer** (`apps/envio-indexer`): Envio HyperIndex aggregates both networks into revenue, MRR, daily volume and metered usage for the dashboard and the website.
 - **App** (`apps/web`) and **website** (`apps/landing`): the product, on Mainnet or Testnet, and the site that explains it.
 
 ### Tech stack
 
-Solidity 0.8.25 with Foundry; TypeScript throughout; viem; React 19 with Vite and React Router; Next.js for the website; Hono and Postgres for the API; Mera passkeys; Privy; Aurora Intents; Chainlink CRE; Envio HyperIndex and HyperSync; web-push.
+Solidity 0.8.25 with Foundry; TypeScript throughout; viem; React 19 with Vite and React Router; Next.js for the website; Hono and Postgres for the API; x402 V2 (`@x402/core`); Mera passkeys; Privy; Aurora Intents; Chainlink CRE; Envio HyperIndex and HyperSync; web-push.
 
 ## Built on Monad
 
@@ -209,7 +253,8 @@ Solidity 0.8.25 with Foundry; TypeScript throughout; viem; React 19 with Vite an
 | Envio HyperIndex and HyperSync | HyperIndex aggregates every network's mandates, charges, MRR and daily revenue, and serves the business dashboard's Revenue section and the home page's live figures; HyperSync catches the API's own index up |
 | Privy | Business sign-in, an embedded wallet as the payout address, payout wallets the business has proven it holds, and gas-free payouts the Privy wallet signs |
 | Aurora Intents | Dollars from any chain straight into a payer's account as USDC on Monad |
-| MetaMask Agent Wallet | `mm weir` for agents |
+| MetaMask Agent Wallet | `mm weir` for agents: subscribe, and pay APIs per request |
+| x402 | APIs charge per request in Weir's `weir-meter` scheme; a request costs one signature and no transaction, and the totals settle on Monad in batches |
 
 ## Safety
 
@@ -220,6 +265,7 @@ Every property below is asserted by unit tests, fuzz tests and stateful invarian
 - Nothing is collected after expiry, while a stream is paused, or after cancellation.
 - A stream never collects more than its rate times the time it actually ran.
 - A charge the payer cannot fund moves nothing.
+- A meter never pays more than the running total its payer or manager signed, nor past its daily or lifetime cap, and a receipt signed after a stop or after expiry pays nothing.
 - A call that runs out of gas reverts whole; it is never mistaken for a refusal, so it can never trigger a fallback or skip a settlement.
 - Terms never change after creation, and a signature works once, before its deadline, for exactly what it signed.
 
@@ -255,12 +301,13 @@ Add `?devkey=1` to the app's address in development to use a local stand-in for 
 | `pnpm smoke` | The whole flow on Testnet with a fresh payer that never holds gas |
 | `WEIR_FORK_E2E=1 pnpm exec vitest run apps/api/src/mainnet.fork.test.ts` | The whole flow on a local fork of Mainnet against real USDC and the real Morpho vault; add `WEIR_FORK_RECORDED=1` to test the deployed contracts |
 | `pnpm live:mainnet` | The whole flow on Mainnet with about a dollar of real USDC, through the real API and keeper, every step checked on chain into `.state/mainnet-live/report.json` |
+| `pnpm live:x402 --network testnet --calls 100` | Pay per request against the deployed API, as an agent: approve, paid requests with a session key, refusal at the cap, settlement on chain, stop; `--network mainnet` with `LIVE_PAYER_KEY_FILE` spends real USDC |
 
 ## Repository
 
 | Path | What it is |
 | --- | --- |
-| `src/` | `MandateHub`, `MandateCharger`, `SavingsRouter`, and the Testnet stand-ins |
+| `src/` | `MandateHub`, `MandateCharger`, `SavingsRouter`, `MandateMeter`, and the Testnet stand-ins |
 | `test/` | Unit, fuzz and invariant suites |
 | `packages/shared` | Networks, assets, typed data, dollar arithmetic, ABIs, the deployment record |
 | `apps/api` | Relayer, plans and merchants, family support, reminders, private notes, webhooks, the index |
@@ -269,6 +316,7 @@ Add `?devkey=1` to the app's address in development to use a local stand-in for 
 | `apps/envio-indexer` | The Envio HyperIndex project ([README](apps/envio-indexer/README.md)) |
 | `apps/web` | The app: checkout, payments, family support, the business dashboard |
 | `apps/landing` | The website, with a live mandate count read from the chain |
+| `packages/x402` | `@weir/x402`: the `weir-meter` scheme, a paywall for any Fetch-API server, and a paying `fetch` ([README](packages/x402/README.md)) |
 | `packages/agent-wallet-plugin` | `mm weir` ([README](packages/agent-wallet-plugin/README.md)) |
 | `tools/readme-art` | Draws this README's banner and diagrams from the app's own design tokens and typeface (`assets/readme`) |
 
@@ -286,6 +334,7 @@ forge script script/VerifyDeployment.s.sol:VerifyDeployment --rpc-url "$MONAD_RP
 pnpm --filter @weir/shared build
 ```
 
+The meter deploys on its own, after the hub, accepting the hub's assets: `forge script script/DeployMandateMeter.s.sol:DeployMandateMeter` the same way, then `node --env-file=.env scripts/record-deployment.mjs DeployMandateMeter`.
 Then point the CRE configs and the indexer at the new record (`pnpm sync` in `apps/envio-indexer`).
 
 </details>
@@ -298,7 +347,7 @@ One image (`Dockerfile`, `railway.json`, `.railwayignore`) runs the API or the k
 
 | Service | Image | Settings |
 | --- | --- | --- |
-| api-mainnet, api-testnet | `Dockerfile`, `WEIR_SERVICE=api` | that network's API values from `.env.mainnet` or `.env`, `DATABASE_URL` (its own database), `ENVIO_DATABASE_URL`, `API_ALLOWED_ORIGINS` set to the app and the website |
+| api-mainnet, api-testnet | `Dockerfile`, `WEIR_SERVICE=api` | that network's API values from `.env.mainnet` or `.env`, `DATABASE_URL` (its own database), `ENVIO_DATABASE_URL`, `API_ALLOWED_ORIGINS` set to the app and the website, `PUBLIC_API_URL` (its own public address, which x402 offers name as the facilitator), and for the paid demo `DEMO_PAY_TO`, `DEMO_PRICE`; `METER_SETTLE_MIN` and `METER_SETTLE_AFTER_SECONDS` tune settlement batches |
 | keeper-mainnet, keeper-testnet | `Dockerfile`, `WEIR_SERVICE=keeper` | that network's keeper values |
 | envio | `apps/envio-indexer/Dockerfile` (`railway up apps/envio-indexer --path-as-root`) | `ENVIO_API_TOKEN`, `ENVIO_PG_*` for its own database |
 | Postgres | Railway's | one database per API and one for the indexer |
