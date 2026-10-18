@@ -17,7 +17,9 @@ import {
   hubDomain,
   permitTypedData,
   randomNonce,
+  meterRefForHost,
   refFromString,
+  textOfRef,
 } from "./eip712.js";
 import { MAINNET_AUSD } from "./chains.js";
 import type { MandateTerms, MeterTerms } from "./types.js";
@@ -180,6 +182,22 @@ describe("helpers", () => {
   it("pads a ref to 32 bytes and refuses a longer one", () => {
     expect(refFromString("ab")).toBe(`0x6162${"0".repeat(60)}`);
     expect(() => refFromString("x".repeat(33))).toThrow(RangeError);
+  });
+
+  it("names a meter by its API's host, shortened with an ellipsis when it does not fit", () => {
+    expect(textOfRef(meterRefForHost("rates.example"))).toBe("rates.example");
+    expect(textOfRef(meterRefForHost("a".repeat(32)))).toBe("a".repeat(32));
+    const long = meterRefForHost("api-testnet-production-9789.up.railway.app");
+    expect(textOfRef(long)).toBe("api-testnet-production-9789.u…");
+    expect(new TextEncoder().encode(textOfRef(long)).length).toBeLessThanOrEqual(32);
+    // A cut never splits a character.
+    expect(textOfRef(meterRefForHost("é".repeat(20)))).toBe(`${"é".repeat(14)}…`);
+  });
+
+  it("reads a ref as text only when it is printable", () => {
+    expect(textOfRef(`0x${"00".repeat(32)}`)).toBeUndefined();
+    expect(textOfRef(refFromString("plan_basic"))).toBe("plan_basic");
+    expect(textOfRef(`0x${"01ff".repeat(16)}`)).toBeUndefined();
   });
 });
 

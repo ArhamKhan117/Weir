@@ -12,8 +12,9 @@ import {
   meterCancelTypedData,
   meterDomain,
   permitTypedData,
+  meterRefForHost,
   randomNonce,
-  refFromString,
+  textOfRef,
   type MeterTerms,
 } from "@weir/shared";
 import {
@@ -88,23 +89,9 @@ export function defaultCaps(offer: MeterOffer): { perDay: bigint; total: bigint;
   return { perDay: offer.price * 1_000n, total: offer.price * 5_000n, days: 30 };
 }
 
-/** The API's host, up to 32 bytes: the meter's `ref`, so the meter can be shown by name. */
-export function refHost(url: string): string {
-  const host = new URL(url, window.location.href).host;
-  const bytes = new TextEncoder().encode(host);
-  return bytes.length <= 32 ? host : new TextDecoder().decode(bytes.slice(0, 32)).replace(/\uFFFD+$/, "");
-}
-
-/** The name a meter's `ref` carries, when it is readable text. */
+/** The name a meter's `ref` carries: the host of the API it pays. */
 export function meterName(ref: Hex): string | undefined {
-  const bytes = ref
-    .slice(2)
-    .match(/../g)
-    ?.map((pair) => Number.parseInt(pair, 16))
-    .filter((byte) => byte !== 0);
-  if (bytes === undefined || bytes.length === 0) return undefined;
-  const text = new TextDecoder().decode(new Uint8Array(bytes));
-  return /^[\x20-\x7e]+$/.test(text) ? text : undefined;
+  return textOfRef(ref);
 }
 
 export function meterTermsFor(
@@ -122,7 +109,7 @@ export function meterTermsFor(
     period: DAY,
     maxTotal: caps.total,
     expiresAt: BigInt(now + caps.days * DAY),
-    ref: refFromString(refHost(apiUrl)),
+    ref: meterRefForHost(new URL(apiUrl, window.location.href).host),
   };
 }
 

@@ -41,8 +41,8 @@ import {
   meterDomain,
   networkFor,
   permitTypedData,
+  meterRefForHost,
   randomNonce,
-  refFromString,
   requireDeployment,
   stablecoinAbi,
   type FaucetResponse,
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
     period: 86_400,
     maxTotal: spend * 2n,
     expiresAt: BigInt(now + 86_400),
-    ref: refFromString(new URL(apiUrl).host.slice(0, 32)),
+    ref: meterRefForHost(new URL(apiUrl).host),
   };
   const [allowance, permitNonce] = await Promise.all([
     client.readContract({ address: offer.asset, abi: stablecoinAbi, functionName: "allowance", args: [payer.address, meterAddress] }),

@@ -14,8 +14,8 @@ import {
   meterCancelTypedData,
   meterDomain,
   permitTypedData,
+  meterRefForHost,
   randomNonce,
-  refFromString,
   type CancelMeterRequest,
   type InstallMeterRequest,
   type InstallMeterResponse,
@@ -110,7 +110,7 @@ export async function prepareApproval(deps: Deps, fetchImpl: typeof fetch, input
     period: DAY,
     maxTotal: total,
     expiresAt: BigInt(now + days * DAY),
-    ref: refFromString(new TextDecoder().decode(new TextEncoder().encode(host).slice(0, 32)).replace(/�+$/, "")),
+    ref: meterRefForHost(host),
   };
   const chain = deps.chain(chainId);
   const [allowed, permitDomain, permitNonce, balance] = await Promise.all([

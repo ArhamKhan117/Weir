@@ -284,6 +284,33 @@ export function refFromString(text: string): Hex {
   return hex as Hex;
 }
 
+/**
+ * A meter's `ref` naming the API it pays: the API's host, or as much of it as fits followed by
+ * "…" when the host is longer than a ref's 32 bytes.
+ */
+export function meterRefForHost(host: string): Hex {
+  const encoder = new TextEncoder();
+  if (encoder.encode(host).length <= 32) return refFromString(host);
+  let kept = "";
+  for (const char of host) {
+    if (encoder.encode(`${kept}${char}…`).length > 32) break;
+    kept += char;
+  }
+  return refFromString(`${kept}…`);
+}
+
+/** The text a ref carries, such as a meter's API host, when it is printable text; otherwise nothing. */
+export function textOfRef(ref: Hex): string | undefined {
+  const bytes = (ref.slice(2).match(/../g) ?? []).map((pair) => Number.parseInt(pair, 16)).filter((byte) => byte !== 0);
+  if (bytes.length === 0) return undefined;
+  const text = new TextDecoder().decode(new Uint8Array(bytes));
+  const printable = [...text].every((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code >= 0x20 && (code < 0x7f || code > 0x9f) && code !== 0xfffd;
+  });
+  return printable ? text : undefined;
+}
+
 /*//////////////////////////////////////////////////////////////
                          OFF-CHAIN MESSAGES
 //////////////////////////////////////////////////////////////*/

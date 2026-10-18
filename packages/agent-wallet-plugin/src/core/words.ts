@@ -4,7 +4,8 @@
  * same in the terminal as it does at checkout.
  */
 
-import { formatDollars, formatDollarsExact, rateOver, type Plan } from "@weir/shared";
+import { formatDollars, formatDollarsExact, rateOver, textOfRef, type Plan } from "@weir/shared";
+import type { Hex } from "viem";
 
 const DAY = 86_400;
 
@@ -114,8 +115,6 @@ export function apyPhrase(bps: number): string {
 }
 
 /** The host a meter's `ref` names, when it is readable text. */
-export function meterTitle(view: { ref: string; merchant: string }): string {
-  const bytes = Buffer.from(view.ref.slice(2), "hex").filter((byte) => byte !== 0);
-  const text = new TextDecoder().decode(bytes);
-  return bytes.length > 0 && /^[\x20-\x7e]+$/.test(text) ? text : `the API paying ${shortAddress(view.merchant)}`;
+export function meterTitle(view: { ref: Hex; merchant: string }): string {
+  return textOfRef(view.ref) ?? `the API paying ${shortAddress(view.merchant)}`;
 }
