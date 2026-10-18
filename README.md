@@ -100,7 +100,7 @@ The app and the website switch between the two.
 | API, Mainnet | [api-mainnet-production-fc07.up.railway.app/health](https://api-mainnet-production-fc07.up.railway.app/health) |
 | API, Testnet | [api-testnet-production-9789.up.railway.app/health](https://api-testnet-production-9789.up.railway.app/health) |
 | Live stats (Envio HyperIndex) | [api-mainnet-production-fc07.up.railway.app/v1/stats](https://api-mainnet-production-fc07.up.railway.app/v1/stats) |
-| Envio HyperIndex GraphQL (both networks) | `https://indexer.dev.hyperindex.xyz/6077704/v1/graphql` ([example queries](apps/envio-indexer/README.md#live)) |
+| Envio HyperIndex GraphQL (both networks) | `https://indexer.dev.hyperindex.xyz/6077704/v1/graphql`, the current hosted deployment ([example queries](apps/envio-indexer/README.md#live)) |
 | X | [@weirstudio](https://x.com/weirstudio) |
 
 A keeper charges what is due on each network every few seconds, and the Envio HyperIndex project indexes both, all hosted on Railway.
@@ -207,6 +207,7 @@ const answer = await pay("https://api.example/quote");
 ```
 
 Each API has a demo: `GET /demo/fx?to=PKR` on either network's API answers today's dollar rate for $0.001.
+On Testnet it is free to try; on Mainnet it is open to the first 100 people, and pauses itself before the relayer's gas runs low.
 In the app, **Pay per request** approves it and calls it; an agent does the same with `mm weir approve` and `mm weir fetch`.
 After the first request a client pays up front, so a paid request is one round trip, and the facilitator answers it in about 25 ms.
 

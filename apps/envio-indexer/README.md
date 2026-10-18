@@ -65,7 +65,8 @@ Every meter field is rebuilt from events alone, the period roll on each settleme
 
 ## Live
 
-The index runs on Envio's hosted service, synced on Monad Mainnet and Testnet through HyperSync, and serves GraphQL publicly:
+The index runs on Envio's hosted service, on the free development plan, synced on Monad Mainnet and Testnet through HyperSync, and serves GraphQL publicly.
+On that plan every deployment has its own address and runs for at most 30 days or about 100,000 processed events, so the address below is the current deployment's and changes with each one:
 
 ```
 https://indexer.dev.hyperindex.xyz/6077704/v1/graphql
@@ -90,9 +91,13 @@ curl -s https://indexer.dev.hyperindex.xyz/6077704/v1/graphql -H 'content-type: 
 
 # One mandate's timeline
 { MandateEvent(where: {mandate_id: {_eq: "10143-4"}}, order_by: {timestamp: asc}) { kind amount timestamp transactionHash } }
+
+# Pay-per-request meters, and what each has settled on chain
+{ Meter(order_by: {createdAt: desc}, limit: 10) { id merchant_id standing totalCharged settlementCount } }
 ```
 
-The same index also runs self-hosted beside the Weir API on Railway, which is the copy the app's Revenue section and home stats read.
+The same index also runs self-hosted beside the Weir API on Railway, which is the copy the app's Revenue section and home stats read, and which does not expire.
+`GET /v1/stats` on either Weir API serves its figures without GraphQL.
 
 ## What reads it
 
@@ -310,7 +315,8 @@ Nothing the indexer runs reads outside this directory, and it needs no HyperSync
    - Deployment branch: a branch of its own, for example `envio`
 4. Optionally, under Environment Variables, set `ENVIO_RPC_URL_143` and `ENVIO_RPC_URL_10143` to RPCs of your choice; the public Monad RPCs are used otherwise, for block times and as the fallback source.
 5. Push the deployment branch: `git push origin HEAD:envio`. Each push builds a new deployment and syncs it from the start block while the previous one keeps serving.
-6. When it is synced, promote it to production, and query `https://<your endpoint>/v1/graphql`.
+6. When it is synced, copy its GraphQL address from the deployment's page into the Live section above and the README, then delete the older deployments: the development plan keeps at most three at once, and each one uses indexing hours.
+   A stable production address that survives new deployments is a paid plan.
 
 The free development plan deletes a deployment after 30 days and starts winding one down past 100,000 processed events; each sweep pass counts as one, about 1,500 a day on Testnet.
 The same steps work with the alpha `envio-cloud` CLI: `envio-cloud indexer add --name weir --repo <repo> --root-dir apps/envio-indexer --branch envio`.
