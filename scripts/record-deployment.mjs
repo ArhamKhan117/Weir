@@ -17,13 +17,17 @@
 // its transaction, and `savings`, each routed asset's symbol mapped to its vault, read back from
 // the deployed router. Nothing else in the entry changes.
 //
-//   node --env-file=.env scripts/record-deployment.mjs [Deploy|DeploySavingsRouter]
+// `DeployMandateMeter` adds the meter the same way: `contracts.MandateMeter`, its transaction and
+// `meterStartBlock`, after checking it accepts exactly the hub's assets. A new hub keeps a recorded
+// meter only while the assets still match.
+//
+//   node --env-file=.env scripts/record-deployment.mjs [Deploy|DeploySavingsRouter|DeployMandateMeter]
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const SCRIPTS = ["Deploy", "DeploySavingsRouter"];
+const SCRIPTS = ["Deploy", "DeploySavingsRouter", "DeployMandateMeter"];
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const script = process.argv[2] ?? "Deploy";
@@ -90,6 +94,11 @@ const reusedStandIns = (byName, returns) => {
   if (addresses.length !== 4) throw new Error("the run's return value does not name the stand-ins it reused");
   return { TestStablecoin: checksum(addresses[2]), TestSavingsVault: checksum(addresses[3]) };
 };
+
+/** A hub's or meter's accepted assets, checksummed. */
+const acceptedOf = (contract) => (call(contract, "acceptedAssets()(address[])").match(/0x[0-9a-fA-F]{40}/g) ?? []).map(checksum);
+
+const sameAssets = (a, b) => a.length === b.length && a.every((asset) => b.includes(asset));
 
 /** The router's routes as `[asset, vault]` pairs, checksummed, in the order it lists them. */
 const routesOf = (router) => {
@@ -184,6 +193,37 @@ if (script === "Deploy") {
       console.warn("Redeploy it with script/DeploySavingsRouter.s.sol and record it.");
     }
   }
+
+  // The meter does not depend on the hub either, only on accepting the same assets.
+  const meter = previous?.contracts?.MandateMeter;
+  if (meter !== undefined) {
+    if (sameAssets(acceptedOf(meter), Object.values(assets))) {
+      entry.contracts.MandateMeter = meter;
+      entry.transactions.MandateMeter = previous.transactions.MandateMeter;
+      entry.meterStartBlock = previous.meterStartBlock;
+    } else {
+      console.warn(`dropped MandateMeter ${meter}: it accepts different assets from this deployment.`);
+      console.warn("Redeploy it with script/DeployMandateMeter.s.sol and record it.");
+    }
+  }
+} else if (script === "DeployMandateMeter") {
+  if (previous === undefined) {
+    throw new Error(`nothing is recorded on chain ${chainId}: record the Deploy broadcast first`);
+  }
+  const { byName, receipts } = readBroadcast("DeployMandateMeter");
+  const tx = byName.MandateMeter;
+  if (tx === undefined) throw new Error("the broadcast created no MandateMeter");
+
+  const meter = checksum(tx.contractAddress);
+  if (!sameAssets(acceptedOf(meter), Object.values(previous.assets))) {
+    throw new Error(`${meter} does not accept exactly the recorded assets`);
+  }
+  entry = {
+    ...previous,
+    meterStartBlock: Number(receipts.get(tx.hash).blockNumber),
+    contracts: { ...previous.contracts, MandateMeter: meter },
+    transactions: { ...previous.transactions, MandateMeter: tx.hash },
+  };
 } else {
   if (previous === undefined) {
     throw new Error(`nothing is recorded on chain ${chainId}: record the Deploy broadcast first`);

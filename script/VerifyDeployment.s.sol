@@ -9,6 +9,7 @@ import {MandateHub} from "../src/MandateHub.sol";
 import {MandateCharger} from "../src/MandateCharger.sol";
 import {SavingsRouter} from "../src/SavingsRouter.sol";
 import {ISavingsRouter} from "../src/interfaces/ISavingsRouter.sol";
+import {MandateMeter} from "../src/MandateMeter.sol";
 
 /// @title VerifyDeployment
 /// @notice Checks the recorded deployment against the chain, with no key and no transaction.
@@ -17,7 +18,9 @@ import {ISavingsRouter} from "../src/interfaces/ISavingsRouter.sol";
 ///      assets and EIP-712 domain must match the record, the charger must point at the hub and at
 ///      the recorded forwarders, and the Testnet stand-ins must be what they claim. When the entry
 ///      names a savings router, its routes on chain must be exactly the recorded `savings` map,
-///      each over an asset the hub accepts and a vault whose `asset()` is that asset.
+///      each over an asset the hub accepts and a vault whose `asset()` is that asset. When it names
+///      a meter, the meter must accept exactly the hub's assets under the same EIP-712 name and
+///      version, and its first block must be recorded.
 ///
 ///      forge script script/VerifyDeployment.s.sol:VerifyDeployment --rpc-url monad
 contract VerifyDeployment is Script {
@@ -75,12 +78,37 @@ contract VerifyDeployment is Script {
         }
 
         _verifySavings(json, key, hub);
+        _verifyMeter(json, key, hub);
 
         console2.log("deployment verified on chain", chainId);
         console2.log("MandateHub     ", address(hub));
         console2.log("MandateCharger ", address(charger));
         _logRouter(json, key);
+        string memory meterKey = string.concat(key, ".contracts.MandateMeter");
+        if (vm.keyExistsJson(json, meterKey)) console2.log("MandateMeter   ", json.readAddress(meterKey));
         console2.log("next mandate id", hub.nextMandateId());
+    }
+
+    /// @dev With a meter recorded: code, the hub's assets exactly, the hub's EIP-712 name and
+    ///      version under its own address, and a recorded first block.
+    function _verifyMeter(string memory json, string memory key, MandateHub hub) internal view {
+        string memory meterKey = string.concat(key, ".contracts.MandateMeter");
+        if (!vm.keyExistsJson(json, meterKey)) return;
+        MandateMeter meter = MandateMeter(json.readAddress(meterKey));
+        _hasCode(address(meter), "MandateMeter");
+        _check(vm.keyExistsJson(json, string.concat(key, ".meterStartBlock")), "meter start block");
+
+        (, string memory name, string memory version, uint256 domainChain, address verifying,,) = meter.eip712Domain();
+        (, string memory hubName, string memory hubVersion,,,,) = hub.eip712Domain();
+        _check(_same(name, hubName) && _same(version, hubVersion), "meter EIP-712 name and version");
+        _check(domainChain == block.chainid && verifying == address(meter), "meter EIP-712 chain and contract");
+
+        address[] memory assets = hub.acceptedAssets();
+        address[] memory metered = meter.acceptedAssets();
+        _check(assets.length == metered.length, "meter asset count");
+        for (uint256 i = 0; i < assets.length; ++i) {
+            _check(meter.isAcceptedAsset(assets[i]), "meter accepts the hub's assets");
+        }
     }
 
     /// @dev With a router recorded, its routes on chain are exactly the recorded `savings` map,

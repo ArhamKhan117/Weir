@@ -25,6 +25,7 @@ const SOURCES = {
   MandateHub: "src/MandateHub.sol:MandateHub",
   MandateCharger: "src/MandateCharger.sol:MandateCharger",
   SavingsRouter: "src/SavingsRouter.sol:SavingsRouter",
+  MandateMeter: "src/MandateMeter.sol:MandateMeter",
   TestStablecoin: "src/testnet/TestStablecoin.sol:TestStablecoin",
   TestSavingsVault: "src/testnet/TestSavingsVault.sol:TestSavingsVault",
 };
