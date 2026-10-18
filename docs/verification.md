@@ -11,7 +11,7 @@ Monad documents two ways to verify a contract, and Weir uses both, plus the publ
 
 An exact match means the compiled creation code and runtime code are byte for byte what is on chain, metadata included.
 Constructor arguments are taken from each contract's own creation transaction, never retyped.
-Last checked 2026-10-06 by `node --env-file=.env scripts/verify-contracts.mjs`, which submits every contract and writes this file from what the explorers answer.
+Last checked 2026-10-18 by `node --env-file=.env scripts/verify-contracts.mjs`, which submits every contract and writes this file from what the explorers answer.
 
 ## Monad Mainnet (143)
 
@@ -20,6 +20,7 @@ Last checked 2026-10-06 by `node --env-file=.env scripts/verify-contracts.mjs`, 
 | `MandateHub` | [`0x184c…c6a0`](https://monadvision.com/address/0x184c6c26C1cB7f79885ED7c71e810E564CEec6a0) | Exact match | [Verified](https://monadscan.com/address/0x184c6c26C1cB7f79885ED7c71e810E564CEec6a0#code) | Exact match |
 | `MandateCharger` | [`0xC555…Ff03`](https://monadvision.com/address/0xC555DBb7059B46fa4D3de4b6602E3c52cacCFf03) | Exact match | [Verified](https://monadscan.com/address/0xC555DBb7059B46fa4D3de4b6602E3c52cacCFf03#code) | Exact match |
 | `SavingsRouter` | [`0x9eE6…0295`](https://monadvision.com/address/0x9eE63583406589Fc6701dF53182Ed4E59A180295) | Exact match | [Verified](https://monadscan.com/address/0x9eE63583406589Fc6701dF53182Ed4E59A180295#code) | Exact match |
+| `MandateMeter` | [`0x4674…8862`](https://monadvision.com/address/0x46740BECd71B4F71d7C1550c73E74839791c8862) | Exact match | [Verified](https://monadscan.com/address/0x46740BECd71B4F71d7C1550c73E74839791c8862#code) | Exact match |
 
 ## Monad Testnet (10143)
 
@@ -30,6 +31,7 @@ Last checked 2026-10-06 by `node --env-file=.env scripts/verify-contracts.mjs`, 
 | `MandateHub` | [`0x08ca…0Bc1`](https://testnet.monadvision.com/address/0x08ca57f960D5D9A2b06475C6Ca4583eDa4680Bc1) | Exact match | [Verified](https://testnet.monadscan.com/address/0x08ca57f960D5D9A2b06475C6Ca4583eDa4680Bc1#code) | Exact match |
 | `MandateCharger` | [`0xB433…9E03`](https://testnet.monadvision.com/address/0xB4333c519c9D5c300737824ca5792891DBBa9E03) | Exact match | [Verified](https://testnet.monadscan.com/address/0xB4333c519c9D5c300737824ca5792891DBBa9E03#code) | Exact match |
 | `SavingsRouter` | [`0x41dC…A46E`](https://testnet.monadvision.com/address/0x41dC6AE1e9939ACFd73d64e114Ee48711AB4A46E) | Exact match | [Verified](https://testnet.monadscan.com/address/0x41dC6AE1e9939ACFd73d64e114Ee48711AB4A46E#code) | Exact match |
+| `MandateMeter` | [`0x75a6…7a36`](https://testnet.monadvision.com/address/0x75a6385f9BE0dCb12693b0807DB6244B4A947a36) | Exact match | [Verified](https://testnet.monadscan.com/address/0x75a6385f9BE0dCb12693b0807DB6244B4A947a36#code) | Exact match |
 
 ## Check it yourself
 

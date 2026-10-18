@@ -12,7 +12,7 @@
 import type { TypedDataDomain } from "viem";
 
 import type { PermitDomain } from "./chains.js";
-import type { Address, Hex, MandateTerms } from "./types.js";
+import type { Address, Hex, MandateTerms, MeterTerms, UsageReceipt } from "./types.js";
 
 /** The hub's EIP-712 domain version. */
 export const HUB_DOMAIN_VERSION = "1";
@@ -166,6 +166,100 @@ export function permitTypedData(input: {
       nonce: input.nonce,
       deadline: input.deadline,
     },
+  } as const;
+}
+
+/*//////////////////////////////////////////////////////////////
+                              THE METER
+//////////////////////////////////////////////////////////////*/
+
+// `MandateMeter`'s types, matching its `*_TYPEHASH` constants character for character.
+
+export const METER_AUTHORIZATION_TYPES = {
+  MeterAuthorization: [
+    { name: "payer", type: "address" },
+    { name: "terms", type: "MeterTerms" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+  MeterTerms: [
+    { name: "merchant", type: "address" },
+    { name: "asset", type: "address" },
+    { name: "manager", type: "address" },
+    { name: "periodCap", type: "uint96" },
+    { name: "period", type: "uint32" },
+    { name: "maxTotal", type: "uint96" },
+    { name: "expiresAt", type: "uint64" },
+    { name: "ref", type: "bytes32" },
+  ],
+} as const;
+
+export const USAGE_RECEIPT_TYPES = {
+  UsageReceipt: [
+    { name: "meterId", type: "uint256" },
+    { name: "total", type: "uint96" },
+    { name: "issuedAt", type: "uint64" },
+  ],
+} as const;
+
+export const METER_CANCEL_TYPES = {
+  MeterCancel: [
+    { name: "meterId", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/** The meter's domain on a given chain: the same name and version as the hub, its own address. */
+export function meterDomain(meter: { name: string; chainId: number; address: Address }): TypedDataDomain {
+  return { name: meter.name, version: HUB_DOMAIN_VERSION, chainId: meter.chainId, verifyingContract: meter.address };
+}
+
+export function meterAuthorizationTypedData(input: {
+  domain: TypedDataDomain;
+  payer: Address;
+  terms: MeterTerms;
+  nonce: bigint;
+  deadline: bigint;
+}) {
+  return {
+    domain: input.domain,
+    types: METER_AUTHORIZATION_TYPES,
+    primaryType: "MeterAuthorization",
+    message: {
+      payer: input.payer,
+      terms: {
+        merchant: input.terms.merchant,
+        asset: input.terms.asset,
+        manager: input.terms.manager,
+        periodCap: input.terms.periodCap,
+        period: input.terms.period,
+        maxTotal: input.terms.maxTotal,
+        expiresAt: input.terms.expiresAt,
+        ref: input.terms.ref,
+      },
+      nonce: input.nonce,
+      deadline: input.deadline,
+    },
+  } as const;
+}
+
+/** A usage receipt, signed by the meter's payer or manager for every paid request. */
+export function usageReceiptTypedData(input: { domain: TypedDataDomain; receipt: UsageReceipt }) {
+  return {
+    domain: input.domain,
+    types: USAGE_RECEIPT_TYPES,
+    primaryType: "UsageReceipt",
+    message: { meterId: input.receipt.meterId, total: input.receipt.total, issuedAt: input.receipt.issuedAt },
+  } as const;
+}
+
+export function meterCancelTypedData(input: { domain: TypedDataDomain; meterId: bigint; nonce: bigint; deadline: bigint }) {
+  return {
+    domain: input.domain,
+    types: METER_CANCEL_TYPES,
+    primaryType: "MeterCancel",
+    message: { meterId: input.meterId, nonce: input.nonce, deadline: input.deadline },
   } as const;
 }
 

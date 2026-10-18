@@ -23,6 +23,7 @@ const ARTIFACTS = [
   { name: "mandateHubAbi", path: "out/MandateHub.sol/MandateHub.json" },
   { name: "mandateChargerAbi", path: "out/MandateCharger.sol/MandateCharger.json" },
   { name: "savingsRouterAbi", path: "out/SavingsRouter.sol/SavingsRouter.json" },
+  { name: "mandateMeterAbi", path: "out/MandateMeter.sol/MandateMeter.json" },
   // The test stablecoin is ERC-20 plus EIP-2612 `permit` plus a faucet `mint`, a superset of
   // what the hub's clients call on USDC and AUSD.
   { name: "stablecoinAbi", path: "out/TestStablecoin.sol/TestStablecoin.json" },

@@ -5,6 +5,13 @@ import {
   ACTIONS,
   ACTION_TYPES,
   MANDATE_TYPES,
+  METER_AUTHORIZATION_TYPES,
+  METER_CANCEL_TYPES,
+  USAGE_RECEIPT_TYPES,
+  meterAuthorizationTypedData,
+  meterCancelTypedData,
+  meterDomain,
+  usageReceiptTypedData,
   SET_MANAGER_TYPES,
   createMandateTypedData,
   hubDomain,
@@ -13,7 +20,7 @@ import {
   refFromString,
 } from "./eip712.js";
 import { MAINNET_AUSD } from "./chains.js";
-import type { MandateTerms } from "./types.js";
+import type { MandateTerms, MeterTerms } from "./types.js";
 
 // The type strings `MandateHub.sol` hashes into its `*_TYPEHASH` constants, copied verbatim.
 // A client whose types encode to anything else signs digests the hub rejects.
@@ -173,5 +180,104 @@ describe("helpers", () => {
   it("pads a ref to 32 bytes and refuses a longer one", () => {
     expect(refFromString("ab")).toBe(`0x6162${"0".repeat(60)}`);
     expect(() => refFromString("x".repeat(33))).toThrow(RangeError);
+  });
+});
+
+// The type strings `MandateMeter.sol` hashes, copied verbatim.
+const METER_TERMS =
+  "MeterTerms(address merchant,address asset,address manager,uint96 periodCap,uint32 period,uint96 maxTotal,uint64 expiresAt,bytes32 ref)";
+const METER_AUTHORIZATION = `MeterAuthorization(address payer,MeterTerms terms,uint256 nonce,uint256 deadline)${METER_TERMS}`;
+const USAGE_RECEIPT = "UsageReceipt(uint256 meterId,uint96 total,uint64 issuedAt)";
+const METER_CANCEL = "MeterCancel(uint256 meterId,uint256 nonce,uint256 deadline)";
+
+describe("typed data matches the meter's type strings", () => {
+  const meterTerms: MeterTerms = {
+    merchant: "0x00000000000000000000000000000000000000aa",
+    asset: MAINNET_AUSD.address,
+    manager: "0x00000000000000000000000000000000000000bb",
+    periodCap: 5_000_000n,
+    period: 86_400,
+    maxTotal: 20_000_000n,
+    expiresAt: 1_900_000_000n,
+    ref: refFromString("pln_api"),
+  };
+
+  it("encodes MeterTerms and the nested authorization as the meter does", () => {
+    const termsHash = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "address" },
+          { type: "address" },
+          { type: "address" },
+          { type: "uint96" },
+          { type: "uint32" },
+          { type: "uint96" },
+          { type: "uint64" },
+          { type: "bytes32" },
+        ],
+        [
+          keccak256(toBytes(METER_TERMS)),
+          meterTerms.merchant,
+          meterTerms.asset,
+          meterTerms.manager,
+          meterTerms.periodCap,
+          meterTerms.period,
+          meterTerms.maxTotal,
+          meterTerms.expiresAt,
+          meterTerms.ref,
+        ],
+      ),
+    );
+    expect(hashStruct({ types: METER_AUTHORIZATION_TYPES, primaryType: "MeterTerms", data: meterTerms })).toBe(termsHash);
+
+    const payer = "0x00000000000000000000000000000000000000cc";
+    const expected = keccak256(
+      encodeAbiParameters(
+        [{ type: "bytes32" }, { type: "address" }, { type: "bytes32" }, { type: "uint256" }, { type: "uint256" }],
+        [keccak256(toBytes(METER_AUTHORIZATION)), payer, termsHash, 3n, 99n],
+      ),
+    );
+    expect(
+      hashStruct({
+        types: METER_AUTHORIZATION_TYPES,
+        primaryType: "MeterAuthorization",
+        data: { payer, terms: meterTerms, nonce: 3n, deadline: 99n },
+      }),
+    ).toBe(expected);
+  });
+
+  it("encodes receipts and cancellations as the meter does", () => {
+    expect(
+      hashStruct({ types: USAGE_RECEIPT_TYPES, primaryType: "UsageReceipt", data: { meterId: 4n, total: 370_000n, issuedAt: 1_800_000_000n } }),
+    ).toBe(
+      keccak256(
+        encodeAbiParameters(
+          [{ type: "bytes32" }, { type: "uint256" }, { type: "uint96" }, { type: "uint64" }],
+          [keccak256(toBytes(USAGE_RECEIPT)), 4n, 370_000n, 1_800_000_000n],
+        ),
+      ),
+    );
+    expect(hashStruct({ types: METER_CANCEL_TYPES, primaryType: "MeterCancel", data: { meterId: 4n, nonce: 1n, deadline: 2n } })).toBe(
+      keccak256(
+        encodeAbiParameters(
+          [{ type: "bytes32" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+          [keccak256(toBytes(METER_CANCEL)), 4n, 1n, 2n],
+        ),
+      ),
+    );
+  });
+
+  it("builds receipts viem can hash under the meter's own domain", () => {
+    const domain = meterDomain({ name: "Weir", chainId: 143, address: "0x00000000000000000000000000000000000000dd" });
+    const data = usageReceiptTypedData({ domain, receipt: { meterId: 1n, total: 10n, issuedAt: 5n } });
+    expect(hashTypedData(data)).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(domainSeparator({ domain })).not.toBe(
+      domainSeparator({ domain: hubDomain({ name: "Weir", chainId: 143, address: "0x00000000000000000000000000000000000000ee" }) }),
+    );
+    expect(meterAuthorizationTypedData({ domain, payer: zeroAddress, terms: meterTerms, nonce: 1n, deadline: 2n }).primaryType).toBe(
+      "MeterAuthorization",
+    );
+    expect(meterCancelTypedData({ domain, meterId: 1n, nonce: 1n, deadline: 2n }).message.meterId).toBe(1n);
   });
 });

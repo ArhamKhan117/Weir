@@ -40,6 +40,31 @@ export interface MandateTerms {
   ref: Hex;
 }
 
+/** What a payer signs once to open a metered mandate, as `IMandateMeter.Terms`. */
+export interface MeterTerms {
+  /** Who is paid: the API's payout address. */
+  merchant: Address;
+  asset: Address;
+  /** A key that may sign usage receipts and cancel, or the zero address for none. */
+  manager: Address;
+  /** The most that may be settled in one period. */
+  periodCap: bigint;
+  /** The period, in seconds. */
+  period: number;
+  /** The most that may ever be settled. */
+  maxTotal: bigint;
+  /** Unix seconds; receipts issued later are not honored. */
+  expiresAt: bigint;
+  ref: Hex;
+}
+
+/** A usage receipt: the running total owed on a meter as of `issuedAt`, as `IMandateMeter.Receipt`. */
+export interface UsageReceipt {
+  meterId: bigint;
+  total: bigint;
+  issuedAt: bigint;
+}
+
 /** On-chain lifecycle status, in `IMandateHub.Status` order. */
 export type MandateStatus = "Active" | "Delinquent" | "Cancelled";
 

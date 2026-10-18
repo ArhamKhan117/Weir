@@ -3,6 +3,7 @@
  *   mandateHubAbi      out/MandateHub.sol/MandateHub.json
  *   mandateChargerAbi  out/MandateCharger.sol/MandateCharger.json
  *   savingsRouterAbi   out/SavingsRouter.sol/SavingsRouter.json
+ *   mandateMeterAbi    out/MandateMeter.sol/MandateMeter.json
  *   stablecoinAbi      out/TestStablecoin.sol/TestStablecoin.json
  *
  * Generated file, do not edit. Run `pnpm --filter @weir/shared gen:abi` after
@@ -2034,6 +2035,1061 @@ export const savingsRouterAbi = [
 ] as const;
 
 export type SavingsRouterAbi = typeof savingsRouterAbi;
+
+export const mandateMeterAbi = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "assets",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "AUTHORIZATION_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CANCEL_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_PERIOD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_PERIOD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "RECEIPT_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TERMS_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptedAssets",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancel",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelWithSig",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createMeter",
+    "inputs": [
+      {
+        "name": "terms",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Terms",
+        "components": [
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "manager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "periodCap",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "period",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxTotal",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "ref",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createMeterWithSig",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "terms",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Terms",
+        "components": [
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "manager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "periodCap",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "period",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxTotal",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "ref",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "eip712Domain",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "fields",
+        "type": "bytes1",
+        "internalType": "bytes1"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "verifyingContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "extensions",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getMeter",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Meter",
+        "components": [
+          {
+            "name": "payer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "period",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IMandateMeter.Status"
+          },
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "periodStart",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "periodCap",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "manager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "maxTotal",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "totalCharged",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "periodCharged",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "closedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hashCancel",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hashCreate",
+    "inputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "terms",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Terms",
+        "components": [
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "manager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "periodCap",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "period",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxTotal",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "ref",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hashReceipt",
+    "inputs": [
+      {
+        "name": "receipt",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Receipt",
+        "components": [
+          {
+            "name": "meterId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "total",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "issuedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "invalidateNonce",
+    "inputs": [
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "isAcceptedAsset",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "nextMeterId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "nonceUsed",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "settle",
+    "inputs": [
+      {
+        "name": "receipt",
+        "type": "tuple",
+        "internalType": "struct IMandateMeter.Receipt",
+        "components": [
+          {
+            "name": "meterId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "total",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "issuedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "settleable",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "total",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "EIP712DomainChanged",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MeterCancelled",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MeterCreated",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "payer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "merchant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "manager",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "periodCap",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "period",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "maxTotal",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "ref",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "NonceInvalidated",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SettleFailed",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "required",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UsageSettled",
+    "inputs": [
+      {
+        "name": "meterId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "merchant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalCharged",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "receiptTotal",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidAsset",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidExpiry",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidMerchant",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPeriod",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPeriodCap",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidShortString",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidTotalCap",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MeterIsCancelled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NonceAlreadyUsed",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotAuthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NothingToSettle",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReceiptFromTheFuture",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "blockTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReceiptTooLate",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "lastHonored",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SignatureExpired",
+    "inputs": [
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "blockTimestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StringTooLong",
+    "inputs": [
+      {
+        "name": "str",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownMeter",
+    "inputs": []
+  }
+] as const;
+
+export type MandateMeterAbi = typeof mandateMeterAbi;
 
 export const stablecoinAbi = [
   {

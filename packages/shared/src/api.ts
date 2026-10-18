@@ -399,6 +399,120 @@ export interface ChargeView {
 export interface PayerResponse {
   mandates: MandateView[];
   charges: ChargeView[];
+  /** Pay-per-request authorizations, newest first. */
+  meters: MeterView[];
+}
+
+/*//////////////////////////////////////////////////////////////
+                         METERED MANDATES
+//////////////////////////////////////////////////////////////*/
+
+export type MeterStatus = "Active" | "Delinquent" | "Cancelled";
+
+/**
+ * A metered mandate, with what its facilitator has accepted so far.
+ *
+ * `accepted` is the latest usage receipt recorded (what the payer has signed for); `totalCharged`
+ * is what has been settled on chain from it. The gap is usage not yet settled, which the API
+ * settles in batches and anyone else may settle too.
+ */
+export interface MeterView {
+  id: string;
+  /** The `MandateMeter` contract. */
+  meter: Address;
+  chainId: number;
+  payer: Address;
+  merchant: Address;
+  asset: Address;
+  assetSymbol: string;
+  manager: Address;
+  periodCap: Units;
+  /** Seconds. */
+  period: number;
+  maxTotal: Units;
+  expiresAt: number;
+  ref: Hex;
+  status: MeterStatus;
+  /** When it was cancelled; 0 while open. */
+  closedAt: number;
+  totalCharged: Units;
+  accepted: Units;
+  /** Accepted usage in the current period, which starts at `periodStart`. */
+  periodUsed: Units;
+  periodStart: number;
+  calls: number;
+  lastCallAt?: number;
+  createdAt: number;
+  createdTransaction: Hex;
+}
+
+/** One paid request. */
+export interface MeterCall {
+  at: number;
+  amount: Units;
+  /** The running total after this request. */
+  total: Units;
+  /** The URL paid for, when the paywall said. */
+  resource?: string;
+}
+
+/** One settlement on chain. */
+export interface MeterSettlement {
+  kind: "settled" | "failed";
+  amount: Units;
+  /** The receipt total settled against, for a settlement that went through. */
+  receiptTotal?: Units;
+  /** `SettleFailed.reason`, for one that did not. */
+  reason?: number;
+  timestamp: number;
+  transaction: Hex;
+}
+
+/** `GET /v1/x402/meters/:id`. */
+export interface MeterDetail extends MeterView {
+  recentCalls: MeterCall[];
+  settlements: MeterSettlement[];
+}
+
+/** `GET /v1/x402/meters?signer=&payTo=&asset=`: open meters a key may sign for, to a payee. */
+export interface MeterListResponse {
+  meters: MeterView[];
+}
+
+/** The meter terms as signed, with amounts as strings. */
+export interface WireMeterTerms {
+  merchant: Address;
+  asset: Address;
+  manager: Address;
+  periodCap: Units;
+  period: number;
+  maxTotal: Units;
+  expiresAt: number;
+  ref: Hex;
+}
+
+/** `POST /v1/relay/meter`: an optional permit to the meter, then the signed authorization, in one transaction. */
+export interface InstallMeterRequest {
+  permit?: SignedPermit;
+  payer: Address;
+  terms: WireMeterTerms;
+  nonce: string;
+  deadline: number;
+  signature: Hex;
+}
+
+export interface InstallMeterResponse {
+  meterId: string;
+  transactions: { permit?: Hex; create: Hex };
+}
+
+/** `POST /v1/relay/meter/cancel`: a stop signed by the payer or the manager. */
+export interface CancelMeterRequest {
+  meterId: string;
+  signer: Address;
+  nonce: string;
+  deadline: number;
+  signature: Hex;
 }
 
 /*//////////////////////////////////////////////////////////////
@@ -507,6 +621,8 @@ export interface MerchantOverview {
   plans: Plan[];
   mandates: MandateView[];
   charges: ChargeView[];
+  /** Pay-per-request authorizations paying this business's payout wallets. */
+  meters: MeterView[];
   stats: {
     activeMandates: number;
     pastDue: number;
@@ -544,6 +660,13 @@ export const API_ROUTES = {
   savingsVaults: "/v1/savings",
   pushKey: "/v1/push/key",
   pushSubscriptions: "/v1/push/subscriptions",
+  meterInstall: "/v1/relay/meter",
+  meterCancel: "/v1/relay/meter/cancel",
+  x402Supported: "/v1/x402/supported",
+  x402Verify: "/v1/x402/verify",
+  x402Settle: "/v1/x402/settle",
+  meters: "/v1/x402/meters",
+  meter: (id: string) => `/v1/x402/meters/${encodeURIComponent(id)}`,
   notes: "/v1/notes",
   support: "/v1/support",
   supportCircle: (id: string) => `/v1/support/${encodeURIComponent(id)}`,

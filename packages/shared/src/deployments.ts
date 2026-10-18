@@ -29,7 +29,11 @@ export interface Deployment {
     TestSavingsVault?: Address;
     /** Moves savings in and out on the payer's signature; absent where none is deployed. */
     SavingsRouter?: Address;
+    /** Metered mandates for pay-per-use; absent where none is deployed. */
+    MandateMeter?: Address;
   };
+  /** First block to scan for the meter's events, when there is a meter. */
+  meterStartBlock?: number;
   /** The hub's accepted assets, in deployment order, by symbol. */
   assets: Record<string, Address>;
   /** The savings vault the router serves for each asset, by the asset's symbol. */
