@@ -30,6 +30,7 @@ import { DayChart } from "../components/DayChart";
 import { MerchantAuthProvider, useMerchantAuth } from "../merchant/MerchantAuth";
 import { permitDomainFor } from "../lib/permit";
 import { toast } from "../lib/toast";
+import { METER, meterName } from "../lib/meter";
 
 /** A stagger index for `.rise`, so the page settles in order. */
 const at = (i: number) => ({ "--i": i }) as CSSProperties;
@@ -169,6 +170,7 @@ function Workspace() {
       <Revenue />
       <Plans overview={overview} onChanged={refresh} />
       <Customers overview={overview} />
+      <PayPerRequestEarnings overview={overview} />
       <Charges overview={overview} />
       <Earnings overview={overview} />
       <Payouts overview={overview} onChanged={refresh} />
@@ -702,6 +704,91 @@ function Customers({ overview }: { overview: MerchantOverview }) {
                   </td>
                   <td className="muted">{dateShort(mandate.createdAt)}</td>
                   <td className="right num">{moneyExact(mandate.totalCharged)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Pay-per-request: who pays this business by the request, and how to take it. An API answers an
+ * unpaid request with a `weir-meter` offer naming this business's payout wallet; payers approve it
+ * once and pay each request with no prompt; Weir settles the totals to the wallet in batches.
+ */
+function PayPerRequestEarnings({ overview }: { overview: MerchantOverview }) {
+  const [showing, setShowing] = useState(false);
+  if (METER === undefined) return null;
+  const payout = payoutOf(overview);
+  const asset = Object.entries(DEPLOYMENT.assets).find(([symbol]) => symbol === (IS_TESTNET ? "tAUSD" : "USDC"));
+  const snippet = [
+    `import { createPaywall, weirMeter } from "@weir/x402";`,
+    ``,
+    `const paywall = createPaywall({`,
+    `  ...weirMeter(${CHAIN_ID}),`,
+    `  payTo: "${payout ?? "0xYourPayoutWallet"}",`,
+    `  asset: "${asset?.[1] ?? "0x…"}", // ${asset?.[0] ?? "a dollar"}`,
+    `  price: 1000n, // $0.001 a request`,
+    `});`,
+    ``,
+    `app.get("/quote", (c) => paywall(c.req.raw, () => quote(c)));`,
+  ].join("\n");
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2 className="section-title">Pay per request</h2>
+        <Button variant="ghost" size="sm" onClick={() => setShowing((value) => !value)}>
+          {showing ? "Hide setup" : "Charge for your API"}
+        </Button>
+      </div>
+      {showing ? (
+        <div className="card card-pad ppr-setup">
+          <p className="muted">
+            Put a price on any HTTP endpoint with x402. Callers approve your API once, then pay each request with no prompt; Weir
+            settles what they used to your payout wallet in batches, and you are told by webhook.
+          </p>
+          <pre className="ppr-body mono">{snippet}</pre>
+          <p className="fine-print fine-print-left">
+            The paywall is <span className="mono">packages/x402</span> in Weir's repository; any x402 client that speaks the{" "}
+            <span className="mono">weir-meter</span> scheme can pay it.
+          </p>
+        </div>
+      ) : null}
+      {overview.meters.length === 0 ? (
+        <div className="card empty">
+          <strong>No pay-per-request customers yet</strong>
+          When someone approves an API that pays your wallet, they show up here with every request they make.
+        </div>
+      ) : (
+        <div className="card table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>API</th>
+                <th className="right">Requests</th>
+                <th className="right">Used</th>
+                <th className="right">Settled</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.meters.map((meter) => (
+                <tr key={meter.id}>
+                  <td className="mono">{shortAddress(meter.payer)}</td>
+                  <td>{meterName(meter.ref) ?? "Direct"}</td>
+                  <td className="right num">{meter.calls.toLocaleString()}</td>
+                  <td className="right num">{moneyExact(meter.accepted)}</td>
+                  <td className="right num">{moneyExact(meter.totalCharged)}</td>
+                  <td>
+                    <span className={`badge ${meter.status === "Cancelled" ? "" : meter.status === "Delinquent" ? "badge-negative" : "badge-positive"}`}>
+                      {meter.status === "Cancelled" ? "Stopped" : meter.status === "Delinquent" ? "Needs funds" : "Active"}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -23,6 +23,8 @@ import { withTransactionToast } from "../lib/toast";
 import { nameSupporter } from "../lib/support";
 import { NOTE_MAX } from "../notes/keys";
 import { usePrivateNotes, type PrivateNotes } from "../notes/usePrivateNotes";
+import { METER } from "../lib/meter";
+import { MeterCard } from "../meters/MeterCard";
 import { useAccount } from "../passkey/AccountProvider";
 import { Reminders } from "../reminders/Reminders";
 import { SavingsSection } from "../savings/SavingsSection";
@@ -192,7 +194,10 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
             {data === undefined ? (
               <Skeleton width={90} height={28} />
             ) : (
-              money(data.mandates.reduce((sum, m) => sum + BigInt(m.totalCharged), 0n))
+              money(
+                data.mandates.reduce((sum, m) => sum + BigInt(m.totalCharged), 0n) +
+                  data.meters.reduce((sum, m) => sum + BigInt(m.totalCharged), 0n),
+              )
             )}
           </div>
         </div>
@@ -221,6 +226,32 @@ function PaymentsFor({ owner }: { owner: `0x${string}` }) {
       </section>
 
       {live.length > 0 ? <Reminders payer={owner} /> : null}
+
+      {METER === undefined ? null : (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="section-title">Pay per request</h2>
+            <Link className="btn btn-ghost btn-sm" to="/pay-per-request">
+              Approve an API
+            </Link>
+          </div>
+          {data === undefined ? null : data.meters.length === 0 ? (
+            <div className="card empty">
+              <strong>No APIs approved</strong>
+              Approve an API once and pay for each request with no prompt.{" "}
+              <Link className="link" to="/pay-per-request">
+                Try the demo
+              </Link>
+            </div>
+          ) : (
+            <div className="mandate-list">
+              {data.meters.map((meter) => (
+                <MeterCard key={meter.id} meter={meter} onStopped={() => void refresh()} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {ended.length > 0 ? (
         <section className="section">

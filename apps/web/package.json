@@ -21,6 +21,7 @@
     "@scure/bip32": "1.7.0",
     "@scure/bip39": "2.4.0",
     "@weir/shared": "workspace:*",
+    "@weir/x402": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router": "7.9.4",

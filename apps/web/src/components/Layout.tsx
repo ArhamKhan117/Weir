@@ -21,6 +21,7 @@ function pageName(path: string): string | undefined {
   if (path === "/") return undefined;
   if (path.startsWith("/c/")) return "Checkout";
   if (path.startsWith("/s/")) return "Family support";
+  if (path === "/pay-per-request") return "Pay per request";
   return NAV.find((item) => path === item.to)?.label ?? "Not found";
 }
 

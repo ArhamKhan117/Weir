@@ -14,7 +14,7 @@ import { Alert, Button, CheckIcon, PasskeyIcon, Skeleton } from "../components/u
 import { api } from "../lib/api";
 import { balanceOf, vaultValue } from "../lib/chain";
 import { canTopUp, IS_TESTNET } from "../lib/config";
-import { money } from "../lib/format";
+import { money, moneyExact } from "../lib/format";
 import { toast } from "../lib/toast";
 import { useAccount } from "../passkey/AccountProvider";
 import { passkeysAvailable } from "../passkey/ceremony";
@@ -231,7 +231,7 @@ export function FundsStep({
           {!funded && funds !== undefined ? (
             <div className="step-actions step-gap">
               <p className="step-copy">
-                You need {money(needed)} for {neededFor}.
+                You need {moneyExact(needed)} for {neededFor}.
               </p>
               {IS_TESTNET ? (
                 <Button variant="secondary" onClick={addTestDollars} loading={funding} block>

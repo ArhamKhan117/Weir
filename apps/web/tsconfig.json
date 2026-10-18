@@ -13,7 +13,8 @@
     // Vite bundles the workspace packages from source, so typechecking resolves
     // them the same way rather than through their built `exports` maps.
     "paths": {
-      "@weir/shared": ["../../packages/shared/src/index.ts"]
+      "@weir/shared": ["../../packages/shared/src/index.ts"],
+      "@weir/x402": ["../../packages/x402/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

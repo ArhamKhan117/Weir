@@ -14,6 +14,7 @@ const Payments = lazy(() => import("./pages/Payments").then((module) => ({ defau
 const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const SupportStart = lazy(() => import("./pages/Support").then((module) => ({ default: module.SupportStart })));
 const SupportPage = lazy(() => import("./pages/Support").then((module) => ({ default: module.SupportPage })));
+const PayPerRequest = lazy(() => import("./pages/PayPerRequest").then((module) => ({ default: module.PayPerRequest })));
 
 function Page({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="page-narrow" aria-busy="true" />}>{children}</Suspense>;
@@ -53,6 +54,14 @@ const router = createBrowserRouter([
         element: (
           <Page>
             <SupportPage />
+          </Page>
+        ),
+      },
+      {
+        path: "/pay-per-request",
+        element: (
+          <Page>
+            <PayPerRequest />
           </Page>
         ),
       },
