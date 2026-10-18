@@ -1,0 +1,32 @@
+{
+  "name": "@weir/x402",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Pay-per-request with Weir metered mandates over x402: the scheme, a paywall for any HTTP server, and a paying fetch",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@weir/shared": "workspace:*",
+    "@x402/core": "2.28.0",
+    "viem": "2.45.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

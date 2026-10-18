@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    // Typechecking reads the shared package from source, so a clean checkout needs no prior build.
+    "paths": {
+      "@weir/shared": ["../shared/src/index.ts"]
+    }
+  },
+  // `scripts` is typechecked but never emitted: tsconfig.build.json compiles `src` only.
+  "include": ["src"]
+}

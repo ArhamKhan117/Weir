@@ -12,6 +12,7 @@ export default defineConfig({
       // the bare entry would otherwise rewrite `@weir/shared/fs` to `…/index.ts/fs`.
       "@weir/shared/fs": fromRoot("./packages/shared/src/fs.ts"),
       "@weir/shared": fromRoot("./packages/shared/src/index.ts"),
+      "@weir/x402": fromRoot("./packages/x402/src/index.ts"),
     },
   },
   test: {
