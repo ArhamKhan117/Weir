@@ -12,6 +12,7 @@ FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 # Every workspace manifest, so the lockfile matches; only the API, the keeper and what they use install.
 COPY packages/shared/package.json packages/shared/
+COPY packages/x402/package.json packages/x402/
 COPY packages/agent-wallet-plugin/package.json packages/agent-wallet-plugin/
 COPY apps/api/package.json apps/api/
 COPY apps/keeper/package.json apps/keeper/
@@ -20,6 +21,7 @@ COPY apps/landing/package.json apps/landing/
 COPY apps/cre-keeper/package.json apps/cre-keeper/
 RUN pnpm install --frozen-lockfile --filter weir --filter "@weir/api..." --filter "@weir/keeper..."
 COPY packages/shared packages/shared
+COPY packages/x402 packages/x402
 COPY apps/api apps/api
 COPY apps/keeper apps/keeper
 RUN pnpm --filter @weir/shared build

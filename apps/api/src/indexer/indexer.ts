@@ -20,11 +20,17 @@
  *    is the chain's state as of the events stored. A backend that has not reached that block
  *    refuses the read rather than answering with older state, and the mandate stays marked.
  *
- * ## One indexer per hub
+ * ## One indexer per contract
  *
- * The loop holds a Postgres advisory lock for its chain and hub. A second process (an API started
- * with the in-process indexer next to one started with `--indexer-only`) waits on the lock instead
- * of writing the same rows twice, and takes over if the first one dies.
+ * The loop holds a Postgres advisory lock for its chain and contract. A second process (an API
+ * started with the in-process indexer next to one started with `--indexer-only`) waits on the lock
+ * instead of writing the same rows twice, and takes over if the first one dies.
+ *
+ * ## Tracks
+ *
+ * What the logs mean is a {@link IndexTrack}: how a log decodes, how a range is written, and how
+ * touched rows are refreshed. The hub's track is the default; the meter has its own
+ * (`meter.ts`), on the same loop, cursor table and lock, keyed by its own address.
  */
 
 import type { MandateRecord } from "@weir/shared";
@@ -34,18 +40,45 @@ import type { Sql } from "../db/database.js";
 import type { IndexScope } from "../db/store.js";
 import { messageOf, type Logger } from "../log.js";
 import { applyRange, mandatesToRefresh, type TimedLog } from "./apply.js";
-import { decodeHubLog } from "./events.js";
+import { decodeHubLog, type RawLog } from "./events.js";
 import type { MandateReader } from "./reader.js";
 import type { LogBatch, LogSource, RpcLogSource } from "./sources.js";
 
+/** One decoded log, with its block's time. */
+export interface TrackEntry<E> {
+  log: RawLog;
+  event: E;
+  blockTime: number;
+}
+
+/** What a contract's logs mean to the index. */
+export interface IndexTrack<E = unknown> {
+  decode(log: RawLog): E | undefined;
+  /**
+   * Writes the range's logs and advances the cursor to at least `toBlock`, in one transaction.
+   * `entries` is every watched log in the range, in chain order.
+   */
+  apply(
+    range: { fromBlock: number; toBlock: number },
+    entries: readonly TrackEntry<E>[],
+    context: { nowMs: number; canonicalHash: (blockNumber: number) => Promise<string | undefined> },
+  ): Promise<{ inserted: number; removed: number; deliveries: number }>;
+  /** Re-reads every row the applied ranges marked, as of `atBlock`; returns how many. */
+  refresh(atBlock: number): Promise<number>;
+}
+
 export interface IndexerOptions {
   sql: Sql;
+  /** The chain and the contract indexed; `hub` is the contract's address, the cursor's key. */
   scope: IndexScope;
   startBlock: number;
   rpc: Pick<RpcLogSource, "name" | "head" | "getLogs" | "blockTime" | "blockHash" | "chunkBlocks">;
   hypersync?: LogSource;
-  reader: MandateReader;
-  symbolFor: (asset: Address) => string;
+  /** For the hub's track, the default. */
+  reader?: MandateReader;
+  symbolFor?: (asset: Address) => string;
+  /** Another contract's track in place of the hub's. */
+  track?: IndexTrack;
   logger: Logger;
   /** Blocks below the head read again every tick: reorganisations and lagging backends. */
   reorgWindowBlocks?: number;
@@ -103,6 +136,7 @@ export class Indexer {
   readonly #liveWindow: number;
   readonly #hypersyncChunk: number;
   readonly #now: () => number;
+  readonly #track: IndexTrack;
   #hypersyncRestingUntil = 0;
   #stopping = false;
   #loop: Promise<void> | undefined;
@@ -114,6 +148,21 @@ export class Indexer {
     this.#liveWindow = options.liveWindowBlocks ?? DEFAULTS.liveWindowBlocks;
     this.#hypersyncChunk = options.hypersyncChunkBlocks ?? DEFAULTS.hypersyncChunkBlocks;
     this.#now = options.now ?? Date.now;
+    this.#track = options.track ?? this.hubTrack();
+  }
+
+  /** The hub's track: mandates, charges and the webhooks merchants are sent. */
+  private hubTrack(): IndexTrack {
+    const { sql, scope, reader, symbolFor } = this.#options;
+    if (reader === undefined || symbolFor === undefined) throw new Error("the hub's index needs a mandate reader and symbolFor");
+    return {
+      decode: decodeHubLog,
+      apply: async (range, entries, context) => {
+        const result = await applyRange(sql, { scope, symbolFor, ...context }, range, entries as readonly TimedLog[]);
+        return { inserted: result.inserted.length, removed: result.removed, deliveries: result.deliveries };
+      },
+      refresh: (atBlock) => this.refreshMandates(reader, atBlock),
+    };
   }
 
   private async cursor(): Promise<number | undefined> {
@@ -144,7 +193,7 @@ export class Indexer {
 
   /** One pass. Public so tests can drive it. */
   async tick(): Promise<TickReport> {
-    const { sql, scope, startBlock, rpc, symbolFor } = this.#options;
+    const { startBlock, rpc } = this.#options;
     const head = await rpc.head();
     const cursor = (await this.cursor()) ?? startBlock - 1;
     const fromBlock = Math.max(startBlock, Math.min(cursor + 1, head - this.#reorgWindow + 1));
@@ -156,30 +205,29 @@ export class Indexer {
     }
 
     const { source, toBlock, batch } = await this.read(fromBlock, head);
-    const entries: TimedLog[] = [];
+    const entries: TrackEntry<unknown>[] = [];
     for (const log of batch.logs) {
-      const event = decodeHubLog(log);
+      const event = this.#track.decode(log);
       if (event === undefined) continue;
       const blockTime = batch.blockTimes.get(log.blockNumber) ?? (await rpc.blockTime(log.blockNumber));
       entries.push({ log, event, blockTime });
     }
 
-    const result = await applyRange(
-      sql,
-      { scope, symbolFor, nowMs: this.#now(), canonicalHash: (block) => rpc.blockHash(block) },
-      { fromBlock, toBlock },
-      entries,
-    );
+    const result = await this.#track.apply({ fromBlock, toBlock }, entries, {
+      nowMs: this.#now(),
+      canonicalHash: (block) => rpc.blockHash(block),
+    });
     const indexed = Math.max(cursor, toBlock);
     const refreshed = await this.refresh(indexed);
     this.record(head, indexed, source.name);
 
-    if (result.inserted.length > 0 || result.removed > 0) {
+    if (result.inserted > 0 || result.removed > 0) {
       this.#options.logger.info("indexed", {
         from: fromBlock,
         to: toBlock,
         source: source.name,
-        events: result.inserted.length,
+        contract: this.#options.scope.hub,
+        events: result.inserted,
         removed: result.removed,
         webhooks: result.deliveries,
       });
@@ -190,7 +238,7 @@ export class Indexer {
       toBlock,
       source: source.name,
       logs: entries.length,
-      inserted: result.inserted.length,
+      inserted: result.inserted,
       removed: result.removed,
       deliveries: result.deliveries,
       refreshed,
@@ -208,13 +256,17 @@ export class Indexer {
     delete this.status.lastError;
   }
 
+  /** Re-reads every row the track marked, as of `atBlock`. Returns how many were refreshed. */
+  refresh(atBlock: number): Promise<number> {
+    return this.#track.refresh(atBlock);
+  }
+
   /**
    * Overwrites every marked mandate with `getMandate` as of `atBlock`. A read that fails, or a
-   * mandate the node does not know yet, stays marked for the next tick. Returns how many were
-   * refreshed.
+   * mandate the node does not know yet, stays marked for the next tick.
    */
-  async refresh(atBlock: number): Promise<number> {
-    const { sql, scope, reader, logger } = this.#options;
+  private async refreshMandates(reader: MandateReader, atBlock: number): Promise<number> {
+    const { sql, scope, logger } = this.#options;
     const ids = await mandatesToRefresh(sql, scope, this.#options.refreshBatch ?? DEFAULTS.refreshBatch);
     let refreshed = 0;
     for (let i = 0; i < ids.length; i += 8) {
@@ -260,7 +312,7 @@ export class Indexer {
           if (this.status.standingBy) logger.info("the other indexer let go; indexing from here");
           break;
         }
-        if (!this.status.standingBy) logger.warn("another process is indexing this hub; standing by");
+        if (!this.status.standingBy) logger.warn("another process is indexing this contract; standing by", { contract: scope.hub });
         this.status.standingBy = true;
         await this.pause(5_000);
       }

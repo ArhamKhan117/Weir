@@ -1,4 +1,4 @@
-import { mandateHubAbi, savingsRouterAbi, stablecoinAbi } from "@weir/shared";
+import { mandateHubAbi, mandateMeterAbi, savingsRouterAbi, stablecoinAbi } from "@weir/shared";
 import { encodeFunctionData, getAddress, maxUint256, parseAbi, zeroAddress, type Address } from "viem";
 import { describe, expect, it } from "vitest";
 
@@ -204,5 +204,53 @@ describe("the savings router", () => {
     expect(() => checkRelayCall(withPayouts, permit(asset, stranger))).toThrow(/spender is the hub/);
     expect(() => checkRelayCall(withPayouts, bundle(MULTICALL3_ADDRESS, [{ ...transfer(asset), allowFailure: false }]))).toThrow(RelayPolicyError);
     expect(() => checkRelayCall(policy, transfer(asset))).toThrow(/does not call transferFrom/);
+  });
+
+  describe("on the meter", () => {
+    const meter = getAddress("0x00000000000000000000000000000000000000e1");
+    const withMeter: RelayPolicy = { ...policy, meter, multicall: MULTICALL3_ADDRESS };
+    const meterTerms = {
+      merchant: stranger,
+      asset,
+      manager: zeroAddress,
+      periodCap: 1n,
+      period: 60,
+      maxTotal: 1n,
+      expiresAt: 2n ** 40n,
+      ref: `0x${"00".repeat(32)}` as const,
+    };
+    const meterCall = (data: `0x${string}`) => ({ to: meter, data });
+    const create = encodeFunctionData({ abi: mandateMeterAbi, functionName: "createMeterWithSig", args: [payer, meterTerms, 1n, 1n, sig] });
+    const settle = encodeFunctionData({ abi: mandateMeterAbi, functionName: "settle", args: [{ meterId: 3n, total: 10n, issuedAt: 1n }, sig] });
+
+    it("allows the signed creation, the signed stop and a settlement", () => {
+      expect(checkRelayCall(withMeter, meterCall(create))).toEqual({ kind: "createMeterWithSig", payer });
+      const cancel = encodeFunctionData({ abi: mandateMeterAbi, functionName: "cancelWithSig", args: [3n, payer, 1n, 1n, sig] });
+      expect(checkRelayCall(withMeter, meterCall(cancel))).toEqual({ kind: "meterCancel", meterId: 3n, signer: payer });
+      expect(checkRelayCall(withMeter, meterCall(settle))).toEqual({ kind: "meterSettle", meterId: 3n });
+    });
+
+    it("bundles a permit to the meter with its creation, but never a settlement", () => {
+      const install = bundle(MULTICALL3_ADDRESS, [
+        { ...permit(asset, meter), allowFailure: true },
+        { ...meterCall(create), allowFailure: false },
+      ]);
+      expect(checkRelayCall(withMeter, install)).toMatchObject({ kind: "bundle", calls: [{ kind: "permit", owner: payer }, { kind: "createMeterWithSig" }] });
+      const batched = bundle(MULTICALL3_ADDRESS, [{ ...meterCall(settle), allowFailure: false }]);
+      expect(() => checkRelayCall(withMeter, batched)).toThrow(/settles a meter in a transaction of its own/);
+    });
+
+    it("refuses the meter's unsigned functions, and the meter where none is deployed", () => {
+      for (const data of [
+        encodeFunctionData({ abi: mandateMeterAbi, functionName: "createMeter", args: [meterTerms] }),
+        encodeFunctionData({ abi: mandateMeterAbi, functionName: "cancel", args: [3n] }),
+        encodeFunctionData({ abi: mandateMeterAbi, functionName: "invalidateNonce", args: [1n] }),
+      ]) {
+        expect(() => checkRelayCall(withMeter, meterCall(data))).toThrow(/does not call .* on the meter/);
+      }
+      expect(() => checkRelayCall(policy, meterCall(create))).toThrow(/does not send transactions to/);
+      // A permit naming the meter is refused where there is no meter.
+      expect(() => checkRelayCall(policy, permit(asset, meter))).toThrow(/spender is the hub or the meter/);
+    });
   });
 });

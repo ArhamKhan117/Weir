@@ -24,6 +24,11 @@ import { Relayer } from "./relay/relayer.js";
 import { RelayService, type StreamReader } from "./relay/service.js";
 import { createViemRelayChain } from "./relay/viemChain.js";
 import { ReminderWorker } from "./push/reminders.js";
+import { MeterStore } from "./db/meters.js";
+import { createDemo } from "./demo/fx.js";
+import { chainFunds, Facilitator } from "./domain/facilitator.js";
+import { createMeterReader, METER_TOPICS, meterTrack } from "./indexer/meter.js";
+import { MeterSettler } from "./meters/settler.js";
 import type { PushSender } from "./push/sender.js";
 import { WebhookDispatcher, type DispatcherOptions } from "./webhooks/dispatcher.js";
 
@@ -57,6 +62,14 @@ export interface ApiServiceOptions {
   analytics?: EnvioAnalytics;
   /** Push reminders: the VAPID public key browsers subscribe with, and the sender. */
   push?: { publicKey: string; send: PushSender; pollMs?: number };
+  /** Metered mandates, where a meter is deployed: settlement pace, the public URL, the demo API. */
+  meters?: {
+    settleMin: bigint;
+    settleAfterSeconds: number;
+    settlePollMs?: number;
+    publicUrl?: string;
+    demo?: { payTo: Address; price: bigint; rates?: () => Promise<Record<string, number>> };
+  };
 }
 
 export interface ApiService {
@@ -64,6 +77,8 @@ export interface ApiService {
   store: Store;
   relay?: RelayService;
   indexer?: Indexer;
+  meterIndexer?: Indexer;
+  settler?: MeterSettler;
   dispatcher?: WebhookDispatcher;
   reminders?: ReminderWorker;
   start(): void;
@@ -99,6 +114,7 @@ export function createApiService(options: ApiServiceOptions): ApiService {
       permitTokens: permitTokens(deployment),
       ...(faucet === undefined ? {} : { faucet }),
       ...(deployment.router === undefined ? {} : { router: deployment.router }),
+      ...(deployment.meter === undefined ? {} : { meter: deployment.meter.address }),
       payouts: { relayer: options.relayerAccount.address, assets: Object.values(deployment.assets) },
     };
     const relayer = new Relayer(chain, policy, logger);
@@ -129,6 +145,58 @@ export function createApiService(options: ApiServiceOptions): ApiService {
     });
     dispatcher = new WebhookDispatcher({ sql, logger, ...options.webhookOptions });
   }
+  // Metered mandates: their store, the facilitator, their own index, and the settler.
+  let meterStore: MeterStore | undefined;
+  let facilitator: Facilitator | undefined;
+  let meterIndexer: Indexer | undefined;
+  let settler: MeterSettler | undefined;
+  const meterInfo = deployment.meter;
+  if (meterInfo !== undefined) {
+    meterStore = new MeterStore(sql, { chainId: network.chainId, meter: meterInfo.address }, symbolFor);
+    facilitator = new Facilitator({
+      chainId: network.chainId,
+      meter: meterInfo.address,
+      name: deployment.domainName,
+      version: "1",
+      assets: Object.values(deployment.assets),
+      store: meterStore,
+      verifySignature: (args) => publicClient.verifyTypedData(args),
+      funds: chainFunds(publicClient, meterInfo.address),
+      now: () => Math.floor(Date.now() / 1000),
+      ...(relay === undefined || !options.indexer ? {} : { settler: relay.address }),
+    });
+    if (options.indexer) {
+      meterIndexer = new Indexer({
+        sql,
+        scope: { chainId: network.chainId, hub: meterInfo.address },
+        startBlock: meterInfo.startBlock,
+        rpc: new RpcLogSource(publicClient, meterInfo.address, network.logChunkBlocks, METER_TOPICS),
+        ...(options.hypersync === undefined ? {} : { hypersync: new HyperSyncLogSource(options.hypersync, meterInfo.address, METER_TOPICS) }),
+        track: meterTrack({
+          sql,
+          chainId: network.chainId,
+          meter: meterInfo.address,
+          reader: createMeterReader(publicClient, meterInfo.address),
+          store: meterStore,
+          logger,
+        }),
+        logger,
+        ...options.indexerOptions,
+      });
+      if (relay !== undefined && options.meters !== undefined) {
+        const settling = relay;
+        settler = new MeterSettler({
+          store: meterStore,
+          settle: (receipt, signature) => settling.settleMeter(receipt, signature),
+          logger,
+          minAmount: options.meters.settleMin,
+          maxAgeSeconds: options.meters.settleAfterSeconds,
+          ...(options.meters.settlePollMs === undefined ? {} : { pollMs: options.meters.settlePollMs }),
+        });
+      }
+    }
+  }
+
   // Reminders read the index, so they run where the indexer does.
   const reminders =
     options.indexer && options.push !== undefined
@@ -202,9 +270,42 @@ export function createApiService(options: ApiServiceOptions): ApiService {
     };
   };
 
+  // The paid demo API. Its paywall reaches this API's facilitator in-process, through the same routes.
+  // Filled in once the app exists; the demo only calls through it after that.
+  const mounted: { app?: Hono } = {};
+  const publicUrl = options.meters?.publicUrl;
+  const demoOptions = options.meters?.demo;
+  const demoAsset = Object.entries(deployment.assets).find(([symbol]) => symbol === (network.mainnet ? "USDC" : "tAUSD"))?.[1];
+  const demo =
+    facilitator !== undefined && meterInfo !== undefined && publicUrl !== undefined && demoOptions !== undefined && demoAsset !== undefined
+      ? createDemo({
+          chainId: network.chainId,
+          meter: meterInfo.address,
+          name: deployment.domainName,
+          version: "1",
+          facilitator: publicUrl,
+          payTo: demoOptions.payTo,
+          asset: demoAsset,
+          price: demoOptions.price,
+          ...(demoOptions.rates === undefined ? {} : { rates: demoOptions.rates }),
+          // A dollar a day, five in all, for thirty days: plenty for trying it, little at risk.
+          suggested: { periodCap: 1_000_000n, period: 86_400, maxTotal: 5_000_000n, termSeconds: 30 * 86_400 },
+          fetch: async (input, init) => {
+            const request = new Request(input, init);
+            if (mounted.app !== undefined && request.url.startsWith(`${publicUrl}/`)) {
+              const url = new URL(request.url);
+              return mounted.app.fetch(new Request(`http://in-process${url.pathname}${url.search}`, request));
+            }
+            return fetch(request);
+          },
+        })
+      : undefined;
+
   const app = createApp({
     network,
     store,
+    ...(meterStore === undefined || facilitator === undefined ? {} : { meters: { store: meterStore, facilitator } }),
+    ...(demo === undefined ? {} : { demo }),
     ...(relay === undefined ? {} : { relay }),
     auth: createMerchantAuth({
       devAuth: options.devAuth,
@@ -225,20 +326,26 @@ export function createApiService(options: ApiServiceOptions): ApiService {
     ...(options.clientIp === undefined ? {} : { clientIp: options.clientIp }),
   });
 
+  mounted.app = app;
+
   return {
     app,
     store,
     ...(relay === undefined ? {} : { relay }),
     ...(indexer === undefined ? {} : { indexer }),
+    ...(meterIndexer === undefined ? {} : { meterIndexer }),
+    ...(settler === undefined ? {} : { settler }),
     ...(dispatcher === undefined ? {} : { dispatcher }),
     ...(reminders === undefined ? {} : { reminders }),
     start() {
       indexer?.start();
+      meterIndexer?.start();
+      settler?.start();
       dispatcher?.start();
       reminders?.start();
     },
     async stop() {
-      await Promise.all([indexer?.stop(), dispatcher?.stop(), reminders?.stop()]);
+      await Promise.all([indexer?.stop(), meterIndexer?.stop(), settler?.stop(), dispatcher?.stop(), reminders?.stop()]);
       await relay?.drain();
     },
   };

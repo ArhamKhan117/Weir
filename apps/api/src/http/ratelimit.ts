@@ -82,6 +82,8 @@ export const RATE_LIMITS = {
   payoutsPerMerchant: { capacity: 6, windowMs: 10 * 60_000 },
   /** Faucet calls, per client IP. */
   faucetPerIp: { capacity: 5, windowMs: 60 * 60_000 },
+  /** x402 verify and settle, per client IP: a paywall's server calls both for every paid request. */
+  facilitatorPerIp: { capacity: 1_200, windowMs: 60_000 },
 } as const;
 
 /** One faucet grant per address per this many seconds, enforced from the database. */

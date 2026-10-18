@@ -9,13 +9,13 @@
  * with a string.
  */
 
-import { mandateHubAbi, stablecoinAbi } from "@weir/shared";
+import { mandateHubAbi, mandateMeterAbi, stablecoinAbi } from "@weir/shared";
 import { decodeErrorResult, type Abi, type Hex } from "viem";
 
 const REVERT_ABI: Abi = (() => {
   const seen = new Set<string>();
   const errors: Abi[number][] = [];
-  for (const item of [...mandateHubAbi, ...stablecoinAbi]) {
+  for (const item of [...mandateHubAbi, ...mandateMeterAbi, ...stablecoinAbi]) {
     if (item.type !== "error" || seen.has(item.name)) continue;
     seen.add(item.name);
     errors.push(item);
@@ -50,6 +50,12 @@ const HINTS: Readonly<Record<string, string>> = {
   NotStreaming: "only a streaming mandate can be paused or resumed",
   NotAuthorized: "the signer may not do this to this mandate",
   InvalidAction: "the action code is not cancel, pause or resume",
+  UnknownMeter: "no meter has that id",
+  MeterIsCancelled: "the meter is stopped",
+  InvalidPeriodCap: "the period cap is zero or above the lifetime cap",
+  ReceiptFromTheFuture: "the receipt is dated after the current block",
+  ReceiptTooLate: "the receipt is dated after the meter stopped or expired",
+  NothingToSettle: "nothing is owed beyond what is settled, or a cap is reached for now",
   ERC2612ExpiredSignature: "the permit's deadline has passed",
   ERC2612InvalidSigner: "the permit is not signed by its owner",
   InvalidAccountNonce: "the permit's nonce is stale",

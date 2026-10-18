@@ -150,6 +150,15 @@ describe.skipIf(db === undefined)("the HTTP API", () => {
       expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
       // Turning reminders off is a cross-origin DELETE.
       expect(preflight.headers.get("access-control-allow-methods")).toContain("DELETE");
+      // A browser paying over x402 sends PAYMENT-SIGNATURE and reads the offer and the settlement.
+      const paying = await api.request("/demo/fx", {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost:5173", "access-control-request-method": "GET", "access-control-request-headers": "payment-signature" },
+      });
+      expect(paying.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("payment-signature");
+      const exposed = (await api.request("/health", { headers: { origin: "http://localhost:5173" } })).headers.get("access-control-expose-headers");
+      expect(exposed).toContain("PAYMENT-REQUIRED");
+      expect(exposed).toContain("PAYMENT-RESPONSE");
     });
 
     it("reports health", async () => {

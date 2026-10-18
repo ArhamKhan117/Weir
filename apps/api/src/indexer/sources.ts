@@ -1,5 +1,6 @@
 /**
- * Where the indexer's logs come from: the RPC, and Envio HyperSync for catch-up.
+ * Where the indexer's logs come from: the RPC, and Envio HyperSync for catch-up. A source reads
+ * one contract's logs for a set of topics: the hub's by default, the meter's for its track.
  *
  * The RPC is the chain's own view and always answers the head, the live window near it, and any
  * range HyperSync could not. It serves `eth_getLogs` in chunks of `logChunkBlocks` (100 on Monad's
@@ -52,8 +53,9 @@ export class RpcLogSource implements LogSource {
 
   constructor(
     private readonly client: PublicClient,
-    private readonly hub: Address,
+    private readonly address: Address,
     readonly chunkBlocks: number,
+    private readonly topics: readonly Hex[] = WATCHED_TOPICS,
   ) {}
 
   async head(): Promise<number> {
@@ -66,7 +68,7 @@ export class RpcLogSource implements LogSource {
       const end = Math.min(toBlock, start + this.chunkBlocks - 1);
       const page = (await this.client.request({
         method: "eth_getLogs",
-        params: [{ address: this.hub, fromBlock: toHex(start), toBlock: toHex(end), topics: [[...WATCHED_TOPICS]] }],
+        params: [{ address: this.address, fromBlock: toHex(start), toBlock: toHex(end), topics: [[...this.topics]] }],
       })) as unknown as RpcLogShape[];
       for (const log of page) {
         if (log.removed === true) continue;
@@ -174,7 +176,8 @@ export class HyperSyncLogSource implements LogSource {
 
   constructor(
     private readonly client: HyperSyncQueryClient,
-    private readonly hub: Address,
+    private readonly address: Address,
+    private readonly topics: readonly Hex[] = WATCHED_TOPICS,
   ) {}
 
   async getLogs(fromBlock: number, toBlock: number): Promise<LogBatch> {
@@ -186,7 +189,7 @@ export class HyperSyncLogSource implements LogSource {
         fromBlock: cursor,
         // Exclusive on HyperSync's side.
         toBlock: toBlock + 1,
-        logs: [{ address: [this.hub.toLowerCase()], topics: [[...WATCHED_TOPICS]] }],
+        logs: [{ address: [this.address.toLowerCase()], topics: [[...this.topics]] }],
         fieldSelection: { log: LOG_FIELDS, block: BLOCK_FIELDS },
       });
       for (const block of response.data.blocks) {

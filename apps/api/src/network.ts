@@ -28,6 +28,8 @@ export interface ApiDeployment {
   savings: Readonly<Record<string, Address>>;
   /** The router that moves savings in and out on the payer's signature, where one is deployed. */
   router?: Address;
+  /** Metered mandates for pay-per-request, where deployed, and the first block to index. */
+  meter?: { address: Address; startBlock: number };
 }
 
 export interface ApiNetwork {
@@ -59,6 +61,9 @@ export function monadNetwork(config: NetworkConfig): ApiNetwork {
       ...(record.contracts.TestStablecoin === undefined ? {} : { testStablecoin: getAddress(record.contracts.TestStablecoin) }),
       savings: Object.fromEntries(Object.entries(record.savings ?? {}).map(([symbol, vault]) => [symbol, getAddress(vault)])),
       ...(record.contracts.SavingsRouter === undefined ? {} : { router: getAddress(record.contracts.SavingsRouter) }),
+      ...(record.contracts.MandateMeter === undefined
+        ? {}
+        : { meter: { address: getAddress(record.contracts.MandateMeter), startBlock: record.meterStartBlock ?? record.startBlock } }),
     },
   };
 }

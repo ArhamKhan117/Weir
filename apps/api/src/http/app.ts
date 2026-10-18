@@ -14,6 +14,8 @@ import {
   supporterNameTypedData,
   type CheckoutResponse,
   type MerchantOverview,
+  type MeterDetail,
+  type MeterListResponse,
   type MerchantProfile,
   type PayerResponse,
   type MerchantAnalytics,
@@ -47,7 +49,17 @@ import { messageOf, type Logger } from "../log.js";
 import { symbolOf, type ApiNetwork } from "../network.js";
 import { RelayPolicyError } from "../relay/policy.js";
 import { ReceiptTimeoutError, RejectedOnChainError } from "../relay/relayer.js";
-import { parseAction, parseInstall, parsePayout, parseSavings, parseSetManager } from "../relay/requests.js";
+import {
+  parseAction,
+  parseInstall,
+  parseMeterCancel,
+  parseMeterInstall,
+  parsePayout,
+  parseSavings,
+  parseSetManager,
+} from "../relay/requests.js";
+import type { MeterStore } from "../db/meters.js";
+import type { Facilitator } from "../domain/facilitator.js";
 import type { RelayService } from "../relay/service.js";
 import { validateWebhookUrl, type WebhookUrlPolicy } from "../webhooks/url.js";
 import type { MerchantAuth, MerchantIdentity } from "./auth.js";
@@ -106,6 +118,7 @@ export interface RateLimits {
   savingsPerOwner: RateLimiter;
   payoutsPerMerchant: RateLimiter;
   faucetPerIp: RateLimiter;
+  facilitatorPerIp: RateLimiter;
 }
 
 export function createRateLimits(now?: () => number): RateLimits {
@@ -115,6 +128,7 @@ export function createRateLimits(now?: () => number): RateLimits {
     savingsPerOwner: new RateLimiter({ ...RATE_LIMITS.savingsPerOwner, ...(now === undefined ? {} : { now }) }),
     payoutsPerMerchant: new RateLimiter({ ...RATE_LIMITS.payoutsPerMerchant, ...(now === undefined ? {} : { now }) }),
     faucetPerIp: new RateLimiter({ ...RATE_LIMITS.faucetPerIp, ...(now === undefined ? {} : { now }) }),
+    facilitatorPerIp: new RateLimiter({ ...RATE_LIMITS.facilitatorPerIp, ...(now === undefined ? {} : { now }) }),
   };
 }
 
@@ -145,6 +159,10 @@ export interface AppDeps {
   clientIp?: (c: Context) => string;
   /** Milliseconds. */
   now?: () => number;
+  /** Metered mandates and their facilitator, where a meter is deployed. */
+  meters?: { store: MeterStore; facilitator: Facilitator };
+  /** A paid demo endpoint behind the `weir-meter` paywall, mounted at `/demo`. */
+  demo?: Hono;
 }
 
 /** The socket's peer. Forwarded headers are not trusted: anyone can send them. */
@@ -197,8 +215,10 @@ export function createApp(deps: AppDeps): Hono {
     cors({
       origin: (origin) => (deps.allowedOrigins.includes(origin) ? origin : null),
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization"],
-      exposeHeaders: ["Retry-After"],
+      // x402: a browser sends its payment in PAYMENT-SIGNATURE, and reads the offer and the
+      // settlement from PAYMENT-REQUIRED and PAYMENT-RESPONSE.
+      allowHeaders: ["Content-Type", "Authorization", "PAYMENT-SIGNATURE"],
+      exposeHeaders: ["Retry-After", "PAYMENT-REQUIRED", "PAYMENT-RESPONSE"],
       maxAge: 600,
     }),
   );
@@ -286,9 +306,49 @@ export function createApp(deps: AppDeps): Hono {
     const body: PayerResponse = {
       mandates: await store.mandates({ payer }, nowSeconds(), 200),
       charges: await store.charges({ payer }, 50),
+      meters: deps.meters === undefined ? [] : await deps.meters.store.forPayer(payer, nowSeconds()),
     };
     return c.json(body);
   });
+
+  /*//////////////////////////////////////////////////////////////
+                    X402: THE WEIR-METER FACILITATOR
+  //////////////////////////////////////////////////////////////*/
+
+  const requireMeters = () => {
+    if (deps.meters === undefined) throw notFound("There is no meter on this network");
+    return deps.meters;
+  };
+
+  app.get(API_ROUTES.x402Supported, (c) => c.json(requireMeters().facilitator.supported()));
+
+  // Paywalls call these for every paid request, from their own servers: a generous limit per IP.
+  app.post(API_ROUTES.x402Verify, async (c) => {
+    limit(limits.facilitatorPerIp, clientIp(c), "facilitator requests from this client");
+    return c.json(await requireMeters().facilitator.verify(await readJson(c)));
+  });
+
+  app.post(API_ROUTES.x402Settle, async (c) => {
+    limit(limits.facilitatorPerIp, clientIp(c), "facilitator requests from this client");
+    return c.json(await requireMeters().facilitator.settle(await readJson(c)));
+  });
+
+  app.get(API_ROUTES.meters, async (c) => {
+    const signer = readAddress(c.req.query("signer"), "signer");
+    const payTo = readAddress(c.req.query("payTo"), "payTo");
+    const asset = readAddress(c.req.query("asset"), "asset");
+    const body: MeterListResponse = { meters: await requireMeters().store.forSigner(signer, payTo, asset, nowSeconds()) };
+    return c.json(body);
+  });
+
+  app.get("/v1/x402/meters/:id", async (c) => {
+    const id = readUnits(c.req.param("id"), "id", { min: 1n, max: MAX_UINT256 });
+    const detail: MeterDetail | undefined = await requireMeters().store.detail(id, nowSeconds());
+    if (detail === undefined) throw notFound(`No meter ${id} is indexed (yet)`);
+    return c.json(detail);
+  });
+
+  if (deps.demo !== undefined) app.route("/demo", deps.demo);
 
   /*//////////////////////////////////////////////////////////////
                                 RELAY
@@ -302,6 +362,28 @@ export function createApp(deps: AppDeps): Hono {
       // Counted only once the payer's own signature has simulated, so nobody can spend a payer's
       // allowance of installs by sending garbage in their name.
       return c.json(await relay.install(input, () => limit(limits.installPerPayer, input.payer, "installs for this payer")));
+    } catch (error) {
+      relayError(error);
+    }
+  });
+
+  app.post(API_ROUTES.meterInstall, async (c) => {
+    limit(limits.relayPerIp, clientIp(c), "relay requests from this client");
+    const input = parseMeterInstall(await readJson(c), nowSeconds());
+    const relay = requireRelay();
+    try {
+      return c.json(await relay.installMeter(input, () => limit(limits.installPerPayer, input.payer, "installs for this payer")));
+    } catch (error) {
+      relayError(error);
+    }
+  });
+
+  app.post(API_ROUTES.meterCancel, async (c) => {
+    limit(limits.relayPerIp, clientIp(c), "relay requests from this client");
+    const input = parseMeterCancel(await readJson(c), nowSeconds());
+    const relay = requireRelay();
+    try {
+      return c.json(await relay.cancelMeter(input));
     } catch (error) {
       relayError(error);
     }
@@ -683,6 +765,7 @@ export function createApp(deps: AppDeps): Hono {
       plans: await store.listPlans(row.id),
       mandates: mandates.slice(0, 500),
       charges: await store.charges({ merchantId: row.id }, 100),
+      meters: deps.meters === undefined ? [] : await deps.meters.store.forMerchant(row.id, at),
       stats: merchantStats(mandates, await store.collectedSince(row.id, at - THIRTY_DAYS)),
     };
     return c.json(overview);

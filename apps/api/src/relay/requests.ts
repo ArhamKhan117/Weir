@@ -7,7 +7,19 @@
  * expired signature into a free 400 rather than a simulation.
  */
 
-import type { InstallRequest, MandateAction, MandateTerms, PayoutRequest, SavingsRequest, SignedPermit, WireTerms } from "@weir/shared";
+import type {
+  CancelMeterRequest,
+  InstallMeterRequest,
+  InstallRequest,
+  MandateAction,
+  MandateTerms,
+  MeterTerms,
+  PayoutRequest,
+  SavingsRequest,
+  SignedPermit,
+  WireMeterTerms,
+  WireTerms,
+} from "@weir/shared";
 import { isAddressEqual, zeroAddress, type Address, type Hex } from "viem";
 
 import { badRequest } from "../http/errors.js";
@@ -214,5 +226,78 @@ export function parsePayout(value: unknown, nowSeconds: number): PayoutInput {
     to,
     deadline: field(body, "deadline", (v, p) => readDeadline(v, p, nowSeconds)),
     signature: field(body, "signature", (v, p) => readSignature(v, p, PERMIT_SIGNATURE_BYTES)),
+  };
+}
+
+/*//////////////////////////////////////////////////////////////
+                         METERED MANDATES
+//////////////////////////////////////////////////////////////*/
+
+export interface MeterInstallInput {
+  permit?: PermitInput;
+  payer: Address;
+  terms: MeterTerms;
+  nonce: bigint;
+  deadline: number;
+  signature: Hex;
+}
+
+export interface MeterCancelInput {
+  meterId: bigint;
+  signer: Address;
+  nonce: bigint;
+  deadline: number;
+  signature: Hex;
+}
+
+const METER_TERMS_FIELDS = [
+  "merchant",
+  "asset",
+  "manager",
+  "periodCap",
+  "period",
+  "maxTotal",
+  "expiresAt",
+  "ref",
+] as const satisfies readonly (keyof WireMeterTerms)[];
+
+export function readMeterTerms(value: unknown, path: string): MeterTerms {
+  const body: Json = readObject(value, path, METER_TERMS_FIELDS);
+  return {
+    merchant: field(body, "merchant", readAddress, path),
+    asset: field(body, "asset", readAddress, path),
+    manager: field(body, "manager", readAddress, path),
+    periodCap: field(body, "periodCap", (v, p) => readUnits(v, p, { min: 1n, max: MAX_UINT96 }), path),
+    period: field(body, "period", (v, p) => readInteger(v, p, { min: 60, max: 31_536_000 }), path),
+    maxTotal: field(body, "maxTotal", (v, p) => readUnits(v, p, { min: 1n, max: MAX_UINT96 }), path),
+    expiresAt: BigInt(field(body, "expiresAt", (v, p) => readInteger(v, p), path)),
+    ref: field(body, "ref", readBytes32, path),
+  };
+}
+
+export function parseMeterInstall(value: unknown, nowSeconds: number): MeterInstallInput {
+  const body = readObject(value, "body", ["permit", "payer", "terms", "nonce", "deadline", "signature"] satisfies (keyof InstallMeterRequest)[]);
+  const permit = optionalField(body, "permit", (v, p) => readPermit(v, p, nowSeconds));
+  const terms = field(body, "terms", readMeterTerms);
+  if (terms.periodCap > terms.maxTotal) throw badRequest("terms.periodCap must be at most terms.maxTotal");
+  if (terms.expiresAt <= BigInt(nowSeconds)) throw badRequest("terms.expiresAt must be in the future");
+  return {
+    ...(permit === undefined ? {} : { permit }),
+    payer: field(body, "payer", readAddress),
+    terms,
+    nonce: field(body, "nonce", readNonce),
+    deadline: field(body, "deadline", (v, p) => readDeadline(v, p, nowSeconds)),
+    signature: field(body, "signature", (v, p) => readSignature(v, p, MANDATE_SIGNATURE_BYTES)),
+  };
+}
+
+export function parseMeterCancel(value: unknown, nowSeconds: number): MeterCancelInput {
+  const body = readObject(value, "body", ["meterId", "signer", "nonce", "deadline", "signature"] satisfies (keyof CancelMeterRequest)[]);
+  return {
+    meterId: field(body, "meterId", readMandateId),
+    signer: field(body, "signer", readAddress),
+    nonce: field(body, "nonce", readNonce),
+    deadline: field(body, "deadline", (v, p) => readDeadline(v, p, nowSeconds)),
+    signature: field(body, "signature", (v, p) => readSignature(v, p, MANDATE_SIGNATURE_BYTES)),
   };
 }

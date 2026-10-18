@@ -120,14 +120,16 @@ export interface WeirOnAnvil {
   vault: Address;
   hub: Address;
   router: Address;
+  meter: Address;
 }
 
 /**
- * Deploys the test token, the savings vault, the hub and the savings router, as
- * `script/Deploy.s.sol` and `script/DeploySavingsRouter.s.sol` do on Testnet.
+ * Deploys the test token, the savings vault, the hub, the savings router and the meter, as
+ * `script/Deploy.s.sol`, `script/DeploySavingsRouter.s.sol` and `script/DeployMandateMeter.s.sol`
+ * do on Testnet.
  */
 export async function deployWeir(node: AnvilNode): Promise<WeirOnAnvil> {
-  ensureArtifacts(["TestStablecoin", "TestSavingsVault", "MandateHub", "SavingsRouter"]);
+  ensureArtifacts(["TestStablecoin", "TestSavingsVault", "MandateHub", "SavingsRouter", "MandateMeter"]);
   const deployer = anvilAccount(0);
   const wallet = createWalletClient({ account: deployer, chain: anvil, transport: http(node.rpcUrl) });
 
@@ -148,12 +150,14 @@ export async function deployWeir(node: AnvilNode): Promise<WeirOnAnvil> {
   const vault = await deploy("TestSavingsVault", [token.address, "Test AUSD Savings", "stAUSD"]);
   const hub = await deploy("MandateHub", ["Weir", "1", [token.address]]);
   const router = await deploy("SavingsRouter", [[token.address], [vault.address]]);
+  const meter = await deploy("MandateMeter", ["Weir", "1", [token.address]]);
 
   return {
     token: token.address,
     vault: vault.address,
     hub: hub.address,
     router: router.address,
+    meter: meter.address,
     deployment: {
       startBlock: token.block,
       hub: hub.address,
@@ -162,6 +166,7 @@ export async function deployWeir(node: AnvilNode): Promise<WeirOnAnvil> {
       testStablecoin: token.address,
       savings: { tAUSD: vault.address },
       router: router.address,
+      meter: { address: meter.address, startBlock: meter.block },
     },
   };
 }

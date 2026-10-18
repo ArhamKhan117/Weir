@@ -267,4 +267,104 @@ CREATE TABLE IF NOT EXISTS private_notes (
 );
 `,
   },
+  {
+    version: 6,
+    name: "metered mandates",
+    sql: `
+-- MandateMeter's events, keyed like hub_events by where the log sits, so a range read twice
+-- converges on the same rows; and the meters they describe, refreshed from getMeter.
+CREATE TABLE IF NOT EXISTS meter_events (
+  chain_id integer NOT NULL,
+  meter text NOT NULL,
+  tx_hash text NOT NULL,
+  log_index integer NOT NULL,
+  block_number bigint NOT NULL,
+  block_hash text NOT NULL,
+  block_time bigint NOT NULL,
+  event text NOT NULL,
+  meter_id numeric(78, 0) NOT NULL,
+  args jsonb NOT NULL,
+  PRIMARY KEY (chain_id, tx_hash, log_index)
+);
+CREATE INDEX IF NOT EXISTS meter_events_block ON meter_events (chain_id, meter, block_number);
+
+CREATE TABLE IF NOT EXISTS meters (
+  chain_id integer NOT NULL,
+  meter text NOT NULL,
+  id numeric(78, 0) NOT NULL,
+  payer text NOT NULL,
+  merchant text NOT NULL,
+  asset text NOT NULL,
+  manager text NOT NULL,
+  period_cap numeric(78, 0) NOT NULL,
+  period integer NOT NULL,
+  max_total numeric(78, 0) NOT NULL,
+  expires_at bigint NOT NULL,
+  ref text NOT NULL,
+  status text NOT NULL CHECK (status IN ('Active', 'Delinquent', 'Cancelled')),
+  total_charged numeric(78, 0) NOT NULL DEFAULT 0,
+  closed_at bigint NOT NULL DEFAULT 0,
+  created_at bigint NOT NULL,
+  created_block bigint NOT NULL,
+  created_tx text NOT NULL,
+  needs_refresh boolean NOT NULL DEFAULT true,
+  refreshed_at bigint,
+  PRIMARY KEY (chain_id, meter, id)
+);
+CREATE INDEX IF NOT EXISTS meters_payer ON meters (chain_id, meter, payer);
+CREATE INDEX IF NOT EXISTS meters_manager ON meters (chain_id, meter, manager);
+CREATE INDEX IF NOT EXISTS meters_merchant ON meters (chain_id, meter, merchant);
+CREATE INDEX IF NOT EXISTS meters_refresh ON meters (chain_id, meter) WHERE needs_refresh;
+
+CREATE TABLE IF NOT EXISTS meter_settlements (
+  chain_id integer NOT NULL,
+  meter text NOT NULL,
+  tx_hash text NOT NULL,
+  log_index integer NOT NULL,
+  block_number bigint NOT NULL,
+  block_time bigint NOT NULL,
+  meter_id numeric(78, 0) NOT NULL,
+  kind text NOT NULL CHECK (kind IN ('settled', 'failed')),
+  amount numeric(78, 0) NOT NULL,
+  receipt_total numeric(78, 0),
+  reason integer,
+  PRIMARY KEY (chain_id, tx_hash, log_index),
+  FOREIGN KEY (chain_id, tx_hash, log_index) REFERENCES meter_events (chain_id, tx_hash, log_index) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS meter_settlements_meter ON meter_settlements (chain_id, meter, meter_id, block_number DESC);
+
+-- What the facilitator has accepted: the latest usage receipt per meter, signed by the payer or
+-- the manager, which the settler turns into a settlement. Usage in the current period is counted
+-- here too, so a request past the period's cap is refused before it is served.
+CREATE TABLE IF NOT EXISTS meter_usage (
+  chain_id integer NOT NULL,
+  meter text NOT NULL,
+  meter_id numeric(78, 0) NOT NULL,
+  total numeric(78, 0) NOT NULL,
+  issued_at bigint NOT NULL,
+  signature text NOT NULL,
+  period_start bigint NOT NULL,
+  period_used numeric(78, 0) NOT NULL,
+  calls bigint NOT NULL,
+  updated_at bigint NOT NULL,
+  -- The total last sent for settlement, and when; the settler waits for it to land or time out.
+  settling_total numeric(78, 0),
+  settling_since bigint,
+  PRIMARY KEY (chain_id, meter, meter_id)
+);
+
+-- One row per paid request, for the payer's and the business's history.
+CREATE TABLE IF NOT EXISTS meter_calls (
+  chain_id integer NOT NULL,
+  meter text NOT NULL,
+  meter_id numeric(78, 0) NOT NULL,
+  total numeric(78, 0) NOT NULL,
+  amount numeric(78, 0) NOT NULL,
+  resource text,
+  at bigint NOT NULL,
+  PRIMARY KEY (chain_id, meter, meter_id, total)
+);
+CREATE INDEX IF NOT EXISTS meter_calls_time ON meter_calls (chain_id, meter, meter_id, at DESC);
+`,
+  },
 ];

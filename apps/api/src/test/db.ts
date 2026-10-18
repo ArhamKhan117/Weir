@@ -98,7 +98,7 @@ export async function openTestDatabase(label: string): Promise<TestDatabase | un
     schema,
     async reset() {
       await sql.unsafe(
-        "TRUNCATE webhook_deliveries, faucet_grants, charges, hub_events, mandates, indexer_cursors, plans, merchant_payouts, merchants, support_circles, supporter_names, push_subscriptions, push_sent RESTART IDENTITY CASCADE",
+        "TRUNCATE webhook_deliveries, faucet_grants, charges, hub_events, mandates, indexer_cursors, plans, merchant_payouts, merchants, support_circles, supporter_names, push_subscriptions, push_sent, private_notes, meter_calls, meter_usage, meter_settlements, meter_events, meters RESTART IDENTITY CASCADE",
       );
     },
     async close() {

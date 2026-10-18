@@ -94,6 +94,7 @@ async function main(argv: readonly string[]): Promise<void> {
     ...(hypersync === undefined ? {} : { hypersync }),
     indexer: !noIndexer,
     ...(config.push === undefined ? {} : { push: { publicKey: config.push.publicKey, send: webPushSender(config.push) } }),
+    meters: config.meters,
     ...(analytics === undefined ? {} : { analytics }),
   });
   service.start();

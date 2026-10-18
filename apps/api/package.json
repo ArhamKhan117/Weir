@@ -18,6 +18,7 @@
     "@hono/node-server": "2.1.1",
     "@privy-io/server-auth": "1.32.5",
     "@weir/shared": "workspace:*",
+    "@weir/x402": "workspace:*",
     "hono": "4.13.5",
     "postgres": "3.4.9",
     "viem": "2.45.3",

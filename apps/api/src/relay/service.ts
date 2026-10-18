@@ -18,10 +18,12 @@
 import {
   ACTIONS,
   mandateHubAbi,
+  mandateMeterAbi,
   savingsRouterAbi,
   stablecoinAbi,
   VAULT_ACCRUAL_GAS,
   type FaucetResponse,
+  type InstallMeterResponse,
   type InstallResponse,
   type PayoutResponse,
   type RelayResponse,
@@ -42,7 +44,16 @@ import type { Logger } from "../log.js";
 import { savingsVaultFor, type ApiDeployment } from "../network.js";
 import { bundle } from "./policy.js";
 import { RejectedOnChainError, type RelayChain, type Relayer, type Submitted } from "./relayer.js";
-import type { ActionInput, InstallInput, PayoutInput, PermitInput, SavingsInput, SetManagerInput } from "./requests.js";
+import type {
+  ActionInput,
+  InstallInput,
+  MeterCancelInput,
+  MeterInstallInput,
+  PayoutInput,
+  PermitInput,
+  SavingsInput,
+  SetManagerInput,
+} from "./requests.js";
 
 /** What the relayer needs to know about a mandate before relaying a pause or a stop. */
 export interface StreamState {
@@ -138,14 +149,14 @@ export class RelayService {
     }
   }
 
-  private permitCall(permit: PermitInput): { to: Address; data: Hex } {
+  private permitCall(permit: PermitInput, spender: Address = this.hub): { to: Address; data: Hex } {
     const { v, r, s } = splitPermitSignature(permit.signature);
     return {
       to: permit.token,
       data: encodeFunctionData({
         abi: stablecoinAbi,
         functionName: "permit",
-        args: [permit.owner, this.hub, permit.value, BigInt(permit.deadline), v, r, s],
+        args: [permit.owner, spender, permit.value, BigInt(permit.deadline), v, r, s],
       }),
     };
   }
@@ -402,6 +413,105 @@ export class RelayService {
     }
     const sent = await this.relayer.submit(transfer, "payout", { estimate: await this.relayer.estimate(transfer) });
     return { transaction: sent.hash, ...(permitted === undefined ? {} : { permit: permitted }), spender };
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                           METERED MANDATES
+  //////////////////////////////////////////////////////////////*/
+
+  private get meter(): Address {
+    const meter = this.deployment.meter?.address;
+    if (meter === undefined) throw notFound("There is no meter on this network");
+    return meter;
+  }
+
+  /**
+   * Opens a metered mandate: the payer's permit to the meter (when given) and their signed
+   * authorization, in one transaction through Multicall3. As for an install, one read first
+   * reports what each part would do, so a bad signature costs nothing and comes back by name.
+   *
+   * @param admit called once the authorization has simulated and before anything is sent.
+   */
+  async installMeter(input: MeterInstallInput, admit: () => void = () => undefined): Promise<InstallMeterResponse> {
+    const meter = this.meter;
+    const permit = input.permit;
+    if (permit !== undefined) {
+      if (!isAddressEqual(permit.owner, input.payer)) throw badRequest("permit.owner must be the payer");
+      if (!isAddressEqual(permit.token, input.terms.asset)) throw badRequest("permit.token must be terms.asset, the token the meter pays in");
+      if (!this.relayer.policy.permitTokens.some((token) => isAddressEqual(token, permit.token))) {
+        throw badRequest("permit.token is not an accepted asset");
+      }
+    }
+    const create = {
+      to: meter,
+      data: encodeFunctionData({
+        abi: mandateMeterAbi,
+        functionName: "createMeterWithSig",
+        args: [input.payer, input.terms, input.nonce, BigInt(input.deadline), input.signature],
+      }),
+    };
+
+    const multicall = this.relayer.policy.multicall;
+    let created: Submitted;
+    let permitted: Hex | undefined;
+    if (permit !== undefined && multicall !== undefined) {
+      const permitCall = this.permitCall(permit, meter);
+      const [permitResult, createResult] = await this.relayer.inspect([permitCall, create]);
+      if (createResult !== undefined && !createResult.success && createResult.revert !== undefined) {
+        throw new RejectedOnChainError(createResult.revert);
+      }
+      let withPermit = permitResult?.success === true;
+      if (!withPermit) {
+        const covered = (await this.chain.allowance(permit.token, permit.owner, meter)) >= permit.value;
+        if (!covered) throw new RejectedOnChainError(permitResult?.revert ?? { name: "unknown", detail: "the permit reverts" });
+        this.logger.info("meter permit skipped: the allowance already covers it", { token: permit.token, owner: permit.owner });
+        withPermit = false;
+      }
+      admit();
+      created = withPermit
+        ? await this.relayer.submit(bundle(multicall, [{ ...permitCall, allowFailure: true }, { ...create, allowFailure: false }]), "meter install")
+        : await this.relayer.submit(create, "meter install");
+      permitted = withPermit ? created.hash : undefined;
+    } else {
+      const estimate = await this.relayer.estimate(create);
+      admit();
+      created = await this.relayer.submit(create, "meter install", { estimate });
+    }
+
+    const event = parseEventLogs({ abi: mandateMeterAbi, logs: [...created.receipt.logs] }).find(
+      (log) => log.eventName === "MeterCreated" && isAddressEqual(log.address, meter),
+    );
+    if (event === undefined || event.eventName !== "MeterCreated") throw new Error(`meter install ${created.hash} succeeded without a MeterCreated event`);
+    return {
+      meterId: event.args.meterId.toString(),
+      transactions: { ...(permitted === undefined ? {} : { permit: permitted }), create: created.hash },
+    };
+  }
+
+  /** Stops a meter on the payer's or manager's signature. */
+  async cancelMeter(input: MeterCancelInput): Promise<RelayResponse> {
+    const call = {
+      to: this.meter,
+      data: encodeFunctionData({
+        abi: mandateMeterAbi,
+        functionName: "cancelWithSig",
+        args: [input.meterId, input.signer, input.nonce, BigInt(input.deadline), input.signature],
+      }),
+    };
+    return { transaction: (await this.relayer.submit(call, "meter cancel")).hash };
+  }
+
+  /**
+   * Settles a usage receipt on chain, paying the meter's merchant what it says is owed within the
+   * caps. The relayer pays the fee. Estimating is simulating: a receipt with nothing to settle is
+   * refused by name before anything is sent.
+   */
+  async settleMeter(receipt: { meterId: bigint; total: bigint; issuedAt: bigint }, signature: Hex): Promise<RelayResponse> {
+    const call = {
+      to: this.meter,
+      data: encodeFunctionData({ abi: mandateMeterAbi, functionName: "settle", args: [receipt, signature] }),
+    };
+    return { transaction: (await this.relayer.submit(call, "meter settle")).hash };
   }
 
   /** Mints `amount` of the Testnet token to `to`. The caller has checked the network has one. */

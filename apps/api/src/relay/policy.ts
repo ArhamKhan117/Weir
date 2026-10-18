@@ -7,8 +7,8 @@
  * - `createMandateWithSig`, `actWithSig` and `setManagerWithSig` on the hub. Each is authorized
  *   by the payer's or the manager's own signature, which the hub verifies.
  * - `permit` on one of the hub's accepted assets or a known savings vault, and only with the hub
- *   as spender. A permit naming any other spender would turn the relayer into a way of granting
- *   allowances to strangers.
+ *   (or, for a metered mandate, the meter) as spender. A permit naming any other spender would
+ *   turn the relayer into a way of granting allowances to strangers.
  * - `depositFor` and `withdrawFor` on the savings router, when one is deployed. Each carries the
  *   owner's permit to the router, and the router moves money only within the owner's own account.
  * - `mint` on the Testnet faucet token, to at most the configured faucet amount, when the network
@@ -16,6 +16,10 @@
  * - A business's payout: `permit` on an accepted asset naming the relayer itself as spender, then
  *   `transferFrom` on that asset. The relayer can only ever move what an owner permitted it, for
  *   exactly the amount of one payout; the API admits only a signed-in business's own wallet.
+ * - On the meter, when one is deployed: `createMeterWithSig`, `cancelWithSig` and `settle`. The
+ *   first two are authorized by the payer's or manager's signature, which the meter verifies;
+ *   `settle` by the usage receipt the payer or manager signed, and it can only ever pay the meter's
+ *   merchant what that receipt says is owed, within the caps.
  * - `aggregate3` on Multicall3, bundling calls from this list into one transaction, so an install
  *   is one transaction rather than two. Every call inside is checked by the same rules, only a
  *   permit may be marked as allowed to fail (a front-run permit is harmless), and bundles do not
@@ -28,7 +32,7 @@
  * Nothing else: no value, no other function on these contracts, no other contract.
  */
 
-import { mandateHubAbi, savingsRouterAbi, stablecoinAbi } from "@weir/shared";
+import { mandateHubAbi, mandateMeterAbi, savingsRouterAbi, stablecoinAbi } from "@weir/shared";
 import { decodeFunctionData, encodeFunctionData, isAddressEqual, type Address, type Hex } from "viem";
 
 /** The one Multicall3 function the relayer uses. */
@@ -76,6 +80,8 @@ export interface RelayPolicy {
   router?: Address;
   /** For payouts: the relayer's own address, and the assets (never vaults) a payout may move. */
   payouts?: { relayer: Address; assets: readonly Address[] };
+  /** The metered-mandate contract, when one is deployed. */
+  meter?: Address;
 }
 
 export interface RelayCall {
@@ -95,6 +101,9 @@ export type AllowedCall =
   | { kind: "savings"; direction: "deposit" | "withdraw"; owner: Address; asset: Address; amount: bigint }
   | { kind: "payoutPermit"; token: Address; owner: Address; value: bigint }
   | { kind: "payout"; token: Address; from: Address; to: Address; amount: bigint }
+  | { kind: "createMeterWithSig"; payer: Address }
+  | { kind: "meterCancel"; meterId: bigint; signer: Address }
+  | { kind: "meterSettle"; meterId: bigint }
   | { kind: "bundle"; calls: AllowedCall[] };
 
 /** One call inside a bundle. */
@@ -182,6 +191,21 @@ export function checkRelayCall(policy: RelayPolicy, call: RelayCall, inBundle = 
     }
   }
 
+  if (policy.meter !== undefined && isAddressEqual(call.to, policy.meter)) {
+    const decoded = decodeOrRefuse(() => decodeFunctionData({ abi: mandateMeterAbi, data: call.data }), "the meter");
+    switch (decoded.functionName) {
+      case "createMeterWithSig":
+        return { kind: "createMeterWithSig", payer: decoded.args[0] };
+      case "cancelWithSig":
+        return { kind: "meterCancel", meterId: decoded.args[0], signer: decoded.args[1] };
+      case "settle":
+        if (inBundle) throw new RelayPolicyError("the relayer settles a meter in a transaction of its own");
+        return { kind: "meterSettle", meterId: decoded.args[0].meterId };
+      default:
+        throw new RelayPolicyError(`the relayer does not call ${decoded.functionName} on the meter`);
+    }
+  }
+
   if (policy.router !== undefined && isAddressEqual(call.to, policy.router)) {
     const decoded = decodeOrRefuse(() => decodeFunctionData({ abi: savingsRouterAbi, data: call.data }), "the savings router");
     switch (decoded.functionName) {
@@ -212,8 +236,9 @@ export function checkRelayCall(policy: RelayPolicy, call: RelayCall, inBundle = 
   }
   if (decoded.functionName === "permit" && permitToken !== undefined) {
     const [owner, spender, value] = decoded.args;
-    if (!isAddressEqual(spender, policy.hub)) {
-      throw new RelayPolicyError("the relayer only submits permits whose spender is the hub");
+    const toMeter = policy.meter !== undefined && isAddressEqual(spender, policy.meter);
+    if (!isAddressEqual(spender, policy.hub) && !toMeter) {
+      throw new RelayPolicyError("the relayer only submits permits whose spender is the hub or the meter");
     }
     return { kind: "permit", token: permitToken, owner, value };
   }

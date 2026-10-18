@@ -25,6 +25,7 @@ import {
   type Secret,
   type SecretEnvVar,
 } from "@weir/shared";
+import { getAddress, isAddress, type Address } from "viem";
 
 /** `TestStablecoin.MAX_MINT`: the most one `mint` may create. */
 export const TEST_STABLECOIN_MAX_MINT = 10_000_000_000n;
@@ -48,6 +49,17 @@ export interface ApiConfig {
   envioDatabaseUrl?: Secret;
   /** Web Push for reminders: the VAPID key pair and the contact push services may use. */
   push?: { publicKey: string; privateKey: Secret; subject: string };
+  /** Metered mandates: when receipts are settled, and the paid demo API. */
+  meters: {
+    /** Settle a meter once this much is owed, base units. */
+    settleMin: bigint;
+    /** Or once its last request is this old, seconds. */
+    settleAfterSeconds: number;
+    /** This API's public base URL: the facilitator payers are told about. */
+    publicUrl?: string;
+    /** The demo FX API, paying `payTo` `price` base units a request. */
+    demo?: { payTo: Address; price: bigint };
+  };
   /** Why an optional group is off, for the startup log. Never carries a value. */
   notes: string[];
 }
@@ -144,8 +156,12 @@ export function loadApiConfig(env: EnvSource = process.env): ApiConfig {
   const push = readPush(env);
   if (push === undefined) notes.push("VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT are not set: no push reminders");
 
+  const meters = readMeters(env);
+  if (meters.demo === undefined) notes.push("PUBLIC_API_URL and DEMO_PAY_TO are not both set: no paid demo API at /demo");
+
   return {
     network,
+    meters,
     // A host such as Railway names the port in PORT.
     port: optionalEnvInteger("API_PORT", env, { min: 0, max: 65_535 }) ?? optionalEnvInteger("PORT", env, { min: 0, max: 65_535 }) ?? DEFAULT_API_PORT,
     allowedOrigins: readOrigins(env),
@@ -174,4 +190,20 @@ function readPush(env: EnvSource): ApiConfig["push"] {
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(privateKey.reveal())) throw new InvalidEnvVarError("VAPID_PRIVATE_KEY", "a base64url P-256 private key");
   if (!/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(subject)) throw new InvalidEnvVarError("VAPID_SUBJECT", "a mailto: address or an https URL");
   return { publicKey, privateKey, subject };
+}
+
+function readMeters(env: EnvSource): ApiConfig["meters"] {
+  const settleMin = optionalEnv("METER_SETTLE_MIN", env);
+  if (settleMin !== undefined && !/^[1-9]\d{0,20}$/.test(settleMin)) throw new InvalidEnvVarError("METER_SETTLE_MIN", "base units, a positive integer");
+  const publicUrl = optionalEnv("PUBLIC_API_URL", env) === undefined ? undefined : requireEnvUrl("PUBLIC_API_URL", env).replace(/\/+$/, "");
+  const payTo = optionalEnv("DEMO_PAY_TO", env);
+  if (payTo !== undefined && !isAddress(payTo, { strict: false })) throw new InvalidEnvVarError("DEMO_PAY_TO", "an address");
+  const price = optionalEnv("DEMO_PRICE", env);
+  if (price !== undefined && !/^[1-9]\d{0,20}$/.test(price)) throw new InvalidEnvVarError("DEMO_PRICE", "base units, a positive integer");
+  return {
+    settleMin: BigInt(settleMin ?? "100000"),
+    settleAfterSeconds: optionalEnvInteger("METER_SETTLE_AFTER_SECONDS", env, { min: 10, max: 86_400 }) ?? 600,
+    ...(publicUrl === undefined ? {} : { publicUrl }),
+    ...(publicUrl === undefined || payTo === undefined ? {} : { demo: { payTo: getAddress(payTo), price: BigInt(price ?? "1000") } }),
+  };
 }
